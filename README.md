@@ -78,47 +78,78 @@ TODO: 此处应有一张图片或 高清 gif
 
 ```mermaid
 gantt
-title Aggressive Sprint Plan
-dateFormat YYYY-MM-DD
+    title Stage 1 - Playable MVP
+    dateFormat YYYY-MM-DD
 
-section Day 1 主干跑通
-骨架跑通(SSE+cancel+event log)      :a1, 2026-01-14, 1d
+    section 骨架(先跑起来再重构)
+    极简链路(create/answer/stream/cancel + event log) :a1, 2026-01-13, 2d
+    断线重连(fromOffset) + transcript一致性            :a2, after a1, 1d
 
-section Day 2 引入可观测
-OTEL tracing(v0): http+service+provider spans + trace_id贯穿 :a2, after a1, 1d
+    section 可观测
+    OTEL tracing v0(http/app/provider spans + room/turn attrs) :b1, 2026-01-15, 1d
+    指标v0(TTFT/tokens/s/cancel-lat) + 结构化日志             :b2, after b1, 1d
 
-section Day 3 玩法闭环
-单场景+多agent轮询+计分v0 + trace里可见关键阶段          :a3, after a2, 1d
+    section 内容与玩法闭环
+    scenery&persona最小schema + scenery#1(群面拷打)           :c1, 2026-01-16, 2d
+    room/turn状态机(Idle/Streaming/Done/Cancelled)            :c2, after c1, 1d
+    orchestrator v0(3 agents 串行轮询 + 用户推进)             :c3, after c2, 2d
+    计分模型v0(hp/认可度/round) + 结算(失败原因event化)        :c4, after c3, 1d
 
-section Day 4 可靠性
-断线重连(fromOffset回放) + span事件关联                 :a4, after a3, 1d
+    section 额外演示内容
+    worker pool + 队列上限 + reject策略(背压)                 :d1, 2026-01-22, 1d
+    压测脚本 + p95/p99 + pprof(goroutine/heap)截图            :d2, after d1, 1d
 
-section Day 5 Provider抽象
-抽port + mock + openai + provider span 标准化           :a5, after a4, 1d
+    section Demo打磨
+    Demo脚本&彩排&修bug(含一次“取消/背压/重连”表演)           :e1, 2026-01-24, 2d
+```
 
-section Day 6 本地模型
-vLLM接入 + 本地优先策略 + span对比(local vs api)        :a6, after a5, 1d
+```mermaid
+gantt
+    title Stage 2 - External Demo
+    dateFormat YYYY-MM-DD
 
-section Day 7 引入一点网关味道
-routing策略 + sticky session + trace维度标签            :a7, after a6, 1d
+    section Provider(可插拔)
+    provider接口抽象(从单体骨架重构切入点)            :a1, 2026-01-27, 2d
+    接入mock + external API                            :a2, after a1, 2d
+    接入vLLM(本地优先可配)                              :a3, after a2, 2d
 
-section Day 8 稳定性工程
-熔断 + fallback + 超时控制 + trace里标注 fallback原因     :a8, after a7, 1d
+    section 路由与会话
+    路由策略v0(local-prefer / cost-aware / quality)     :b1, 2026-02-02, 2d
+    sticky session + session key(按room/turn维度)       :b2, after b1, 2d
 
-section Day 9 Metrics
-prometheus(TTFT/tokens/s/cancel-lat)                    :a9, after a8, 1d
+    section 稳定性工程
+    health check(readiness/liveness)                    :c1, 2026-02-06, 1d
+    熔断(按provider维度, error-rate/timeout)            :c2, after c1, 2d
+    failover(熔断/超时触发) + 超时预算                   :c3, after c2, 2d
+    故障注入(延迟/错误/限流) + Demo开关                  :c4, after c3, 1d
 
-section Day 10 可视化
-grafana最小dashboard + trace示例截图                     :a10, after a9, 1d
+    section 可观测信号升级
+    metrics(prometheus) + dashboard(grafana)            :d1, 2026-02-12, 2d
+    logs(loki) + trace完善(otel: baggage/links/events)  :d2, after d1, 2d
+    SLO视角展示(p99 TTFT / errors / saturation)         :d3, after d2, 1d
 
-section Day 11 性能故事
-压测 + p99对比(local vs api) + trace样例                :a11, after a10, 1d
+    section 用户可见功能
+    event log replay(回放UI/CLI都行)                    :e1, 2026-02-17, 2d
+    排行榜(最小版)                                       :e2, after e1, 1d
+    自动报告v0(失误点标注: rule-based/heuristic)          :e3, after e2, 3d
+```
 
-section Day 12 Demo工程
-演示脚本 + 故障注入(可视化 + trace可解释)               :a12, after a11, 1d
+```mermaid
+gantt
+    title Stage 3 - Productize
+    dateFormat YYYY-MM-DD
 
-section Day 13 冻结
-README(观测亮点) + 架构图 + 演练                        :a13, after a12, 1d
+    section 内容生产体系
+    checkpoint(保存room状态+事件偏移)                   :a1, 2026-02-17, 3d
+    基于checkpoint派生新scenery(分支/难度递增)           :a2, after a1, 4d
+
+    section 体验增强
+    中英双语(只做两套persona+提示词)                     :b1, 2026-02-24, 6d
+    语音输入(ASR) + TTS(可选供应商/本地)                 :b2, after b1, 7d
+
+    section 提升“产品感”
+    更精细评分(维度/权重/证据event)                      :c1, 2026-03-09, 5d
+    追问树/更优答案建议(半规则半模型)                     :c2, after c1, 5d
 ```
 
 ### 项目框架
