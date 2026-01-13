@@ -36,43 +36,223 @@ TODO: 此处应有一张图片或 高清 gif
 
 #### Stage 1, playable MVP
 
-阶段目标：核心玩法验证
+1. **跑通极简骨架**
+    - minimal API
 
-1. 定义 scenery&persona 数据结构，制作 scenery#1
-2. room/turn 状态机+event log(transcript)
-3. SSE 单路流式输出+minimal API(create room / answer / stream / cancel)
-4. (hanging)orchestrator: 三个 agent 串行发言+用户回答推进
-   考虑中的调度模型：串行调度、随机调度、引入一个更小规模的 LLM 进行调
-5. 计分模型(hp/认可度/round)+结算
-6. 打断（HTTP cancel / WS）
-7. 最小可观测（日志+少量指标）
+        - `POST /rooms`
+        - `POST /rooms/:id/answer`
+        - `GET /rooms/:id/events` (SSE)
+        - `POST /rooms/:id/cancel`
+    - SSE 单路流式输出（chunk 级事件）
+    - event log（append-only + fromOffset 回放）
+2. **打断机制**
+    - HTTP/WS cancel，cancel 必须可靠（立即停止 streaming）
+    - trace 中标记 cancelled=true
+3. **可观测 v0**
+    - OTEL tracing
 
-额外演示内容：
+        - http → app → provider 全链路 span
+        - attributes: `room.id`, `turn.id`, `provider`, `ttft_ms`
+        - first token 作为 span event
 
--   并发限流/队列背压（哪怕是简单的 worker pool + 队列长度上限 + reject 策略）
+    - 最小指标
 
--   压测 + pprof 截图/数据（例如 README 放一张 p95/p99 + goroutine profile ）
+        - TTFT
+        - tokens/s
+        - cancel latency
+
+    - 结构化日志（room/turn 维度）
+4. **scenery & persona**
+
+    - 最小 schema（Go struct + validate）
+    - scenery#1：群面拷打（3 interviewers）
+    - persona 要有：
+
+        - archetype
+        - system prompt
+        - 禁忌/目标
+5. **room / turn 状态机**
+
+    - 状态：
+
+        - Idle
+        - Streaming
+        - Cancelled
+        - Done
+
+    - 所有状态变化 → event 化
+6. **orchestrator v0**
+
+    - 三个 agent 串行轮询发言
+    - 用户回答 → 推进下一轮
+    - 支持策略：
+
+        - 串行（v0默认）
+        - 随机（feature flag）
+
+    - 预留接口：
+
+        - 小模型调度（Stage2 再上）
+7. **计分模型 + 结算**
+
+    - hp / 认可度 / round
+    - 失败原因必须 event 化
+    - 回合结束自动结算
+
+---
+
+##### 额外演示内容
+
+8. **并发限流 / 背压**
+
+    - worker pool
+    - 队列长度上限
+    - reject / degrade 策略
+    - trace 标注：
+
+        - rejected
+        - queued
+
+9. **压测 & 性能素材**
+
+    - 压测脚本（hey/wrk/自写，都行，跑起来就行）
+    - README 输出：
+
+        - p95 / p99 延迟
+        - 并发下 TTFT 变化
+
+    - pprof
+
+        - goroutine
+        - heap
+
+    - 截图放 README
+
+10. **Demo 打磨**
+
+-   固定演示脚本：
+
+    -   正常流
+    -   cancel
+    -   背压触发
+    -   断线重连
+
+-   录屏 / gif
+-   README 演示说明
 
 #### Stage 2, external demo
 
-阶段目标：可对外展示
+**阶段目标：网关能力 + 稳定性工程 + 完整可观测**
 
-1. 抽象 provider (vLLM / external API / mock)
-2. 路由策略(prefer local / external / cost aware) + sticky
-3. healthy check + 熔断 + 自动 failover + 故障注入(mini 混沌工程)
-4. 可观测升级，上 prometheus+grafana+loki+otel
-5. 排行榜
-6. 基于 event log 的回放
-7. 生成基础版报告（失误点标注）
+1. **Provider 抽象**
+
+    - interface 设计
+    - mock
+    - external API
+    - vLLM 本地模型
+
+2. **路由 & 会话**
+
+    - routing:
+
+        - local-prefer
+        - cost-aware
+        - quality-aware
+
+    - sticky session
+    - trace attributes:
+
+        - route_decision
+        - cost_score
+
+3. **稳定性工程**
+
+    - health check
+
+        - liveness
+        - readiness
+
+    - 熔断
+
+        - error-rate
+        - timeout
+
+    - 自动 failover
+    - 故障注入
+
+        - 延迟
+        - 错误率
+        - 限流
+
+    - trace 必须能看到：
+
+        - fallback_reason
+
+4. **可观测升级**
+
+    - metrics → Prometheus
+    - dashboard → Grafana
+    - logs → Loki
+    - tracing → OTEL 完整版
+
+        - baggage
+        - span link
+        - error semantic
+
+5. **用户可见功能**
+
+    - 排行榜
+    - event log replay（UI / CLI 均可）
+    - 自动报告 v0
+
+        - 失误点标注
+        - rule-based / heuristic
 
 #### Stage 3
 
 阶段目标：高完成度、产品感
 
-1. checkpoint & 派生新的 scenery
-2. 多语种（其实只做中英）（用来模拟说中文的“全英”面试）（可能会有信号损失）
-3. 语音输入 + TTS
-4. 更精细的评分和教学（追问树、更优答案 etc）
+1. **checkpoint 系统**
+
+    - 保存：
+
+        - room state
+        - event offset
+
+    - 从 checkpoint 派生新 scenery
+
+        - 难度递增
+        - 分支剧情
+
+2. **多语种**
+
+    - 中英双语 persona
+    - 模拟：
+
+        - 中文思考 → 英文表达
+
+    - 评估：
+
+        - 信息损失
+
+3. **语音交互**
+
+    - ASR
+    - TTS
+    - latency 统计
+
+4. **教学系统**
+
+    - 更精细评分
+
+        - 多维度
+        - 权重
+        - 证据 event
+
+    - 追问树
+    - 更优答案建议
+
+        - rule + LLM hybrid
 
 #### Gantt
 
