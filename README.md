@@ -78,100 +78,47 @@ TODO: 此处应有一张图片或 高清 gif
 
 ```mermaid
 gantt
-title Project Roadmap
+title Aggressive Sprint Plan
 dateFormat YYYY-MM-DD
 
-section Stage 1 (MVP - runnable core)
-骨架跑通(rooms/answer/SSE/cancel/event log) :a1, 2026-01-13, 2d
-玩法最小闭环(单场景+基础计分+串行调度)       :a2, after a1, 3d
-压测&稳定性修整(pprof/连接/取消一致性)       :a3, after a2, 2d
+section Day 1 主干跑通
+骨架跑通(SSE+cancel+event log)      :a1, 2026-01-14, 1d
 
-section Stage 2 (External demo - gateway taste)
-provider抽象+多provider接入(mock/vLLM/external) :b1, 2026-01-20, 3d
-路由策略+sticky session                         :b2, after b1, 2d
-稳定性工程(health/cb/failover/故障注入)         :b3, after b2, 3d
+section Day 2 引入可观测
+OTEL tracing(v0): http+service+provider spans + trace_id贯穿 :a2, after a1, 1d
 
-section Stage 3 (Productize)
-可观测升级(loki/otel/prom/grafana)              :c1, 2026-01-28, 5d
-replay+排行榜+自动报告(基础版)                   :c2, after c1, 6d
-打磨&发布(文档/演示/案例场景扩充)                :c3, after c2, 10d
+section Day 3 玩法闭环
+单场景+多agent轮询+计分v0 + trace里可见关键阶段          :a3, after a2, 1d
 
-```
+section Day 4 可靠性
+断线重连(fromOffset回放) + span事件关联                 :a4, after a3, 1d
 
-```mermaid
-gantt
-    title Stage 1 - Playable MVP (start 01-13)
-    dateFormat  YYYY-MM-DD
+section Day 5 Provider抽象
+抽port + mock + openai + provider span 标准化           :a5, after a4, 1d
 
-    section 主干链路
-    极简骨架(rooms/answer/SSE/event stream)      :a1, 2026-01-13, 1d
-    cancel中断一致性(HTTP优先; WS可后置)          :a2, after a1, 1d
+section Day 6 本地模型
+vLLM接入 + 本地优先策略 + span对比(local vs api)        :a6, after a5, 1d
 
-    section 内容与数据
-    scenery/persona 最小schema(Go struct + validate) :b1, 2026-01-14, 1d
-    scenery#1(群面拷打) + 文案打磨                   :b2, after b1, 1d
+section Day 7 引入一点网关味道
+routing策略 + sticky session + trace维度标签            :a7, after a6, 1d
 
-    section 核心引擎
-    room/turn 状态机(Idle/Streaming/Done/Cancelled)  :c1, 2026-01-15, 1d
-    event log(append + subscribe + fromOffset回放)   :c2, 2026-01-13, 2d
+section Day 8 稳定性工程
+熔断 + fallback + 超时控制 + trace里标注 fallback原因     :a8, after a7, 1d
 
-    section Orchestrator(MVP只做串行调度)
-    单房间串行调度(用户->agents->用户推进)            :d1, 2026-01-16, 1d
-    多agent轮询(最小策略：round-robin)               :d2, after d1, 1d
+section Day 9 Metrics
+prometheus(TTFT/tokens/s/cancel-lat)                    :a9, after a8, 1d
 
-    section 玩法闭环(能“通关/失败”)
-    计分v0(规则少但可解释)                           :e1, 2026-01-17, 1d
-    结算/失败原因(event化)                            :e2, after e1, 1d
+section Day 10 可视化
+grafana最小dashboard + trace示例截图                     :a10, after a9, 1d
 
-    section 可观测(最小闭环)
-    基础指标(TTFT/tokens/s/cancel-lat) + 日志结构化    :f1, 2026-01-17, 1d
+section Day 11 性能故事
+压测 + p99对比(local vs api) + trace样例                :a11, after a10, 1d
 
-    section Demo 稳定
-    压测/pprof/连接稳定性/内存泄漏排查                :g1, 2026-01-18, 1d
-    Demo脚本&彩排&修bug                               :g2, after g1, 1d
+section Day 12 Demo工程
+演示脚本 + 故障注入(可视化 + trace可解释)               :a12, after a11, 1d
 
-
-```
-
-Stage 1 验收标准
-
--   SSE 能持续输出事件（chunk/event types 正常）
--   cancel 可靠：不再继续吐 chunk，并落 TurnCancelled
--   event log 支持 fromOffset 重连回放
--   单房间串行调度 + 多 agent 轮询能跑完一局
--   计分/结算至少能给出：得分 + 失败原因（可解释）
-
-```mermaid
-xychart-beta
-    title "Stage 1 Burndown (Workdays, start 2026-01-13)"
-    x-axis ["D1","D2","D3","D4","D5","D6","D7"]
-    y-axis "Remaining Tasks" 0 --> 14
-    line "Ideal"  [14,10,8,6,4,2,0]
-    line "Actual" [14,14,14,14,14,14,14]
-
-```
-
-```mermaid
-gantt
-    title Stage 2 - External Demo
-    dateFormat  YYYY-MM-DD
-
-    section Provider
-    抽象provider接口(ports/adapters重构切入点)         :a1, 2026-01-20, 1d
-    mock + external(OpenAI等)                           :a2, after a1, 1d
-    vLLM接入(本地优先/可选fallback)                      :a3, after a2, 1d
-
-    section 路由与会话
-    路由策略v0(prefer local / cost aware)                :b1, 2026-01-23, 1d
-    sticky session + session迁移策略(最小版)             :b2, after b1, 1d
-
-    section 稳定性工程(minimal, 只做能展示的关键路径)
-    health check + readiness                              :c1, 2026-01-25, 1d
-    熔断(按provider维度) + fallback                       :c2, after c1, 1d
-    failover + 故障注入(最小：延迟/错误率注入)            :c3, after c2, 1d
-
-
-
+section Day 13 冻结
+README(观测亮点) + 架构图 + 演练                        :a13, after a12, 1d
 ```
 
 ### 项目框架
