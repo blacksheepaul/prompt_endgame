@@ -32,9 +32,9 @@
 
 TODO: 此处应有一张图片或 高清 gif
 
-#### Todo List
+### Todo List
 
-##### Stage 1, playable MVP
+#### Stage 1, playable MVP
 
 阶段目标：核心玩法验证
 
@@ -47,7 +47,13 @@ TODO: 此处应有一张图片或 高清 gif
 6. 打断（HTTP cancel / WS）
 7. 最小可观测（日志+少量指标）
 
-##### Stage 2, external demo
+额外演示内容：
+
+-   并发限流/队列背压（哪怕是简单的 worker pool + 队列长度上限 + reject 策略）
+
+-   压测 + pprof 截图/数据（例如 README 放一张 p95/p99 + goroutine profile ）
+
+#### Stage 2, external demo
 
 阶段目标：可对外展示
 
@@ -59,7 +65,7 @@ TODO: 此处应有一张图片或 高清 gif
 6. 基于 event log 的回放
 7. 生成基础版报告（失误点标注）
 
-##### Stage 3
+#### Stage 3
 
 阶段目标：高完成度、产品感
 
@@ -67,3 +73,98 @@ TODO: 此处应有一张图片或 高清 gif
 2. 多语种（其实只做中英）（用来模拟说中文的“全英”面试）（可能会有信号损失）
 3. 语音输入 + TTS
 4. 更精细的评分和教学（追问树、更优答案 etc）
+
+#### Gantt
+
+```mermaid
+gantt
+title Project Roadmap
+dateFormat YYYY-MM-DD
+
+section Stage 1 (MVP)
+核心玩法验证          :a1, 2026-01-13, 7d
+
+section Stage 2 (demo)
+核心功能实现        :b1, 2026-01-20, 8d
+
+section Stage 3
+产品化                               :c1, after b1, 21d
+
+```
+
+```mermaid
+gantt
+    title Stage 1 - Playable MVP
+    dateFormat  MM-DD
+
+    section 数据结构
+    scenery & persona schema       :a1, 2026-01-13, 1d
+    制作 scenery#1                     :a2, 2026-01-13, 1d
+
+    section 核心引擎
+    room/turn 状态机                  :b1, after a2, 1d
+    event log (transcript)             :b2, after a2, 1d
+
+    section API & 流式
+    API(create/answer/stream)     :c1, after a2, 1d
+    SSE 单路流式输出                   :c2, after a2, 1d
+    cancel 中断 (HTTP/WS)              :c3, after c2, 1d
+
+    section Orchestrator
+    串行调度(agents + 用户推进)       :d1, after c2, 2d
+    调度模型实验(小范围对比)           :d2, after c3, 1d
+
+    section 玩法系统
+    计分模型+结算     :e1, after d2, 1d
+
+    section 可观测(最小)
+    基础日志 + 少量指标                 :f1, after d2, 1d
+
+    section Demo 打磨（关键）
+    压测/pprof/连接稳定性              :g1, after f1, 1d
+    Demo 脚本&彩排&修 bug              :g2, after g1, 1d
+
+```
+
+```mermaid
+xychart-beta
+    title "Stage 1 Burndown (Workdays, start 2026-01-13)"
+    x-axis ["D1","D2","D3","D4","D5","D6","D7"]
+    y-axis "Remaining Tasks" 0 --> 14
+    line "Ideal"  [14,10,8,6,4,2,0]
+    line "Actual" [14,14,14,14,14,14,14]
+
+```
+
+```mermaid
+gantt
+    title Stage 2 - External Demo
+    dateFormat  YYYY-MM-DD
+
+    section Provider
+    抽象 provider 接口                   :a1, 2026-01-20, 1d
+    mock / vLLM / external             :a2, after a1, 2d
+
+    section 路由
+    路由策略(prefer local/cost aware)   :b1, after a2, 1d
+    sticky session                     :b2, after a2, 1d
+
+    section 稳定性工程
+    health check                      :c1, after b2, 1d
+    熔断                               :c2, after b2, 1d
+    failover                          :c3, after c2, 1d
+    故障注入                           :c4, after c2, 1d
+
+    section 可观测升级
+    log(loki)                        :d1,after c4, 1d
+    tracing(otel)                    :d2,after c4,1d
+    metrics(prometheus)              :d3,after c4,2d
+    grafana                          :d4,after c4,2d
+
+    section 用户功能
+    排行榜                              :e1, after d4, 1d
+    replay                             :e2, after e1, 2d
+    自动报告(基础版)                     :e3, after e2, 1d
+
+
+```
