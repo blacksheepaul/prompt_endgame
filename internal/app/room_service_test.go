@@ -84,11 +84,12 @@ func TestRoomService_ConcurrentAnswers(t *testing.T) {
 			defer wg.Done()
 			_, err := service.SubmitAnswer(ctx, room.ID, "test")
 			mu.Lock()
-			if err == nil {
+			switch err {
+			case nil:
 				successCount++
-			} else if err == ErrRoomBusy {
+			case ErrRoomBusy:
 				busyCount++
-			} else {
+			default:
 				t.Errorf("Unexpected error: %v", err)
 			}
 			mu.Unlock()
