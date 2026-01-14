@@ -1,3 +1,17 @@
 .claude
 CLAUDE.md
 TODO.md
+
+# Build artifacts
+bin/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
