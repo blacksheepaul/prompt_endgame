@@ -52,6 +52,27 @@ func TestRoomRepo_ConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestRoomRepo_GetPointerIsDangerous(t *testing.T) {
+	repo := NewRoomRepo()
+	ctx := context.Background()
+	room := domain.NewRoom("test")
+	repo.Save(ctx, room)
+
+	go func() {
+		for i := 0; i < 1000; i++ {
+			r, _ := repo.Get(ctx, room.ID)
+			r.State = domain.RoomStateStreaming // 锁外写
+		}
+	}()
+
+	for i := 0; i < 1000; i++ {
+		_ = repo.Update(ctx, room.ID, func(r *domain.Room) error {
+			r.State = domain.RoomStateIdle
+			return nil
+		})
+	}
+}
+
 func TestRoomRepo_UpdateFunc(t *testing.T) {
 	repo := NewRoomRepo()
 	ctx := context.Background()
