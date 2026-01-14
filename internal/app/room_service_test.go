@@ -15,9 +15,8 @@ import (
 func setupTestService() *RoomService {
 	roomRepo := inmem.NewRoomRepo()
 	eventSink := inmem.NewEventSink()
-	llmProvider := mock.NewProvider()
-	sceneryRepo := fs.NewRepo("./testdata")
-	sceneryRepo.RegisterDefault()
+	llmProvider := mock.NewProvider(50 * time.Millisecond)
+	sceneryRepo := fs.NewRepo("./testdata", true)
 
 	turnRuntime := NewTurnRuntime(llmProvider, eventSink, roomRepo, sceneryRepo)
 	return NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime)

@@ -14,10 +14,10 @@ type Provider struct {
 	Responses  map[string]string // agentID -> response
 }
 
-// NewProvider creates a mock provider with default settings
-func NewProvider() *Provider {
+// NewProvider creates a mock provider with the specified token delay
+func NewProvider(tokenDelay time.Duration) *Provider {
 	return &Provider{
-		TokenDelay: 50 * time.Millisecond,
+		TokenDelay: tokenDelay,
 		Responses: map[string]string{
 			"default": "Hello! I am a mock AI assistant. I'm here to help you test the streaming functionality. This response is being sent token by token.",
 		},

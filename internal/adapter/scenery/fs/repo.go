@@ -16,11 +16,17 @@ type Repo struct {
 }
 
 // NewRepo creates a new filesystem scenery repository
-func NewRepo(basePath string) *Repo {
-	return &Repo{
+func NewRepo(basePath string, registerDefaultScenery bool) *Repo {
+	r := &Repo{
 		basePath:  basePath,
 		sceneries: make(map[string]*port.Scenery),
 	}
+
+	if registerDefaultScenery {
+		r.registerDefault()
+	}
+
+	return r
 }
 
 // LoadFromFile loads a scenery from a JSON file
@@ -40,8 +46,8 @@ func (r *Repo) LoadFromFile(filename string) error {
 	return nil
 }
 
-// RegisterDefault adds a default scenery for testing
-func (r *Repo) RegisterDefault() {
+// registerDefault adds a default scenery for testing
+func (r *Repo) registerDefault() {
 	r.sceneries["default"] = &port.Scenery{
 		ID:          "default",
 		Name:        "Default Scenery",

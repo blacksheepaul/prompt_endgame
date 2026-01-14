@@ -29,12 +29,10 @@ func Wire(cfg *config.Config) *Container {
 	eventSink := inmem.NewEventSink()
 
 	// Create LLM provider (mock for now)
-	llmProvider := mock.NewProvider()
-	llmProvider.TokenDelay = cfg.Provider.TokenDelay
+	llmProvider := mock.NewProvider(cfg.Provider.TokenDelay)
 
 	// Create scenery repo with default scenery
-	sceneryRepo := fs.NewRepo(cfg.Scenery.BasePath)
-	sceneryRepo.RegisterDefault()
+	sceneryRepo := fs.NewRepo(cfg.Scenery.BasePath, true)
 
 	// Create turn runtime
 	turnRuntime := app.NewTurnRuntime(
