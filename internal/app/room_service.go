@@ -62,7 +62,7 @@ func (s *RoomService) CreateRoom(ctx context.Context, sceneryID string) (*domain
 }
 
 // GetRoom retrieves a room by ID
-func (s *RoomService) GetRoom(ctx context.Context, id domain.RoomID) (*domain.Room, error) {
+func (s *RoomService) GetRoom(ctx context.Context, id domain.RoomID) (domain.Room, error) {
 	return s.roomRepo.Get(ctx, id)
 }
 

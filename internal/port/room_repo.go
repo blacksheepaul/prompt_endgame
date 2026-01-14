@@ -11,11 +11,8 @@ type RoomRepository interface {
 	// Save persists a room
 	Save(ctx context.Context, room *domain.Room) error
 
-	// Get retrieves a room by ID
-	Get(ctx context.Context, id domain.RoomID) (*domain.Room, error)
-
-	// Update updates an existing room
-	// Update(ctx context.Context, room *domain.Room) error
+	// Get retrieves a room by ID, returning a value copy for thread safety
+	Get(ctx context.Context, id domain.RoomID) (domain.Room, error)
 
 	// Update updates a room by applying fn within a lock (thread-safe)
 	Update(ctx context.Context, id domain.RoomID, fn func(*domain.Room) error) error

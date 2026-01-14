@@ -30,14 +30,14 @@ func (r *RoomRepo) Save(ctx context.Context, room *domain.Room) error {
 	return nil
 }
 
-func (r *RoomRepo) Get(ctx context.Context, id domain.RoomID) (*domain.Room, error) {
+func (r *RoomRepo) Get(ctx context.Context, id domain.RoomID) (domain.Room, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	room, ok := r.rooms[id]
 	if !ok {
-		return nil, ErrRoomNotFound
+		return domain.Room{}, ErrRoomNotFound
 	}
-	return room, nil
+	return *room, nil
 }
 
 // Update updates a room by applying fn within the write lock
