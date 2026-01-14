@@ -46,6 +46,7 @@ Usage:
   room create [alias]
   room watch <room_id|alias>
   room say <room_id|alias> <user_input>
+  room cancel <room_id|alias>
   room help
 
 Env:
@@ -58,11 +59,13 @@ Examples:
   rid="$(room create)"
   room watch "$rid"
   room say "$rid" "hello world"
+  room cancel "$rid"
 
 With aliases:
   room create foo
   room watch foo
   room say foo "hello world"
+  room cancel foo
 EOF
 }
 
@@ -123,6 +126,20 @@ cmd_say() {
   echo
 }
 
+cmd_cancel() {
+  local id_or_alias="${1:-}"
+
+  [[ -n "$id_or_alias" ]] \
+    || die "usage: room cancel <room_id|alias>"
+
+  local rid
+  rid=$(resolve_alias "$id_or_alias")
+
+  echo "Sending cancel request to room: $rid"
+  curl -sS -X POST "$BASE_URL/rooms/$rid/cancel"
+  echo
+}
+
 # --- entry ---
 
 main() {
@@ -133,6 +150,7 @@ main() {
     create) cmd_create "$@" ;;
     watch)  cmd_watch "$@" ;;
     say)    cmd_say "$@" ;;
+    cancel) cmd_cancel "$@" ;;
     help|-h|--help) usage ;;
     *)
       usage
