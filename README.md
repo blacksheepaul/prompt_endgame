@@ -37,18 +37,22 @@ TODO: 此处应有一张图片或 高清 gif
 #### Stage 1, playable MVP
 
 1. **跑通极简骨架**
+
     - minimal API
 
         - `POST /rooms`
         - `POST /rooms/:id/answer`
         - `GET /rooms/:id/events` (SSE)
         - `POST /rooms/:id/cancel`
+
     - SSE 单路流式输出（chunk 级事件）
     - event log（append-only + fromOffset 回放）
+
 2. **打断机制**
     - HTTP/WS cancel，cancel 必须可靠（立即停止 streaming）
     - trace 中标记 cancelled=true
 3. **可观测 v0**
+
     - OTEL tracing
 
         - http → app → provider 全链路 span
@@ -62,6 +66,7 @@ TODO: 此处应有一张图片或 高清 gif
         - cancel latency
 
     - 结构化日志（room/turn 维度）
+
 4. **scenery & persona**
 
     - 最小 schema（Go struct + validate）
@@ -71,6 +76,7 @@ TODO: 此处应有一张图片或 高清 gif
         - archetype
         - system prompt
         - 禁忌/目标
+
 5. **room / turn 状态机**
 
     - 状态：
@@ -81,18 +87,20 @@ TODO: 此处应有一张图片或 高清 gif
         - Done
 
     - 所有状态变化 → event 化
+
 6. **orchestrator v0**
 
     - 三个 agent 串行轮询发言
     - 用户回答 → 推进下一轮
     - 支持策略：
 
-        - 串行（v0默认）
+        - 串行（v0 默认）
         - 随机（feature flag）
 
     - 预留接口：
 
         - 小模型调度（Stage2 再上）
+
 7. **计分模型 + 结算**
 
     - hp / 认可度 / round
@@ -331,9 +339,3 @@ gantt
     更精细评分(维度/权重/证据event)                      :c1, 2026-03-09, 5d
     追问树/更优答案建议(半规则半模型)                     :c2, after c1, 5d
 ```
-
-### 项目框架
-
-入口 cmd/server/main.go
-| - 加载配置 internal/config/config.go
-| - 手动 DI internal/wiring/wiring.go
