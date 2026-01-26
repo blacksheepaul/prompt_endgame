@@ -30,6 +30,7 @@ func (r *RoomRepo) Save(ctx context.Context, room *domain.Room) error {
 	return nil
 }
 
+// NOTE: 返回浅拷贝，不要做修改
 func (r *RoomRepo) Get(ctx context.Context, id domain.RoomID) (domain.Room, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -42,6 +43,7 @@ func (r *RoomRepo) Get(ctx context.Context, id domain.RoomID) (domain.Room, erro
 
 // Update updates a room by applying fn within the write lock
 // This ensures thread-safe modifications
+// NOTE: 不要在锁里面做I/O
 func (r *RoomRepo) Update(ctx context.Context, id domain.RoomID, fn func(*domain.Room) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
