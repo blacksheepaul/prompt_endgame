@@ -163,6 +163,12 @@ stateDiagram-v2
     Cancelled --> Idle: reset (WIP)
 ```
 
+Current rules:
+
+- SubmitAnswer allowed only when RoomState is Idle or Done
+- Cancel allowed only when RoomState is Streaming
+- Cancelled is terminal until reset (WIP)
+
 ## Event log
 
 ```mermaid
