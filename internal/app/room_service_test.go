@@ -10,20 +10,57 @@ import (
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/scenery/fs"
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/store/inmem"
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
+	"github.com/blacksheepaul/prompt_endgame/internal/port"
 )
 
-func setupTestService() *RoomService {
+type testEnv struct {
+	service   *RoomService
+	eventSink port.EventSink
+}
+
+func setupTestService() testEnv {
 	roomRepo := inmem.NewRoomRepo()
 	eventSink := inmem.NewEventSink()
-	llmProvider := mock.NewProvider(50 * time.Millisecond)
+	llmProvider := mock.NewProvider(1 * time.Millisecond)
 	sceneryRepo := fs.NewRepo("./testdata", true)
 
 	turnRuntime := NewTurnRuntime(llmProvider, eventSink, roomRepo, sceneryRepo)
-	return NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime)
+	return testEnv{
+		service:   NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime),
+		eventSink: eventSink,
+	}
+}
+
+func subscribeRoomEvents(t *testing.T, sink port.EventSink, roomID domain.RoomID) (<-chan domain.Event, func()) {
+	t.Helper()
+	ch, unsubscribe := sink.Subscribe(context.Background(), roomID)
+	return ch, unsubscribe
+}
+
+func waitForEvent(t *testing.T, ch <-chan domain.Event, eventType domain.EventType, timeout time.Duration) domain.Event {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			t.Fatalf("timeout waiting for event %s", eventType)
+			return domain.Event{}
+		case event, ok := <-ch:
+			if !ok {
+				continue
+			}
+			if event.Type == eventType {
+				return event
+			}
+		}
+	}
 }
 
 func TestRoomService_CreateRoom(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, err := service.CreateRoom(ctx, "default")
@@ -43,7 +80,8 @@ func TestRoomService_CreateRoom(t *testing.T) {
 }
 
 func TestRoomService_SubmitAnswer(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, _ := service.CreateRoom(ctx, "default")
@@ -60,12 +98,11 @@ func TestRoomService_SubmitAnswer(t *testing.T) {
 		t.Errorf("Expected input 'Hello', got %s", turn.UserInput)
 	}
 
-	// Give runtime time to update room state
-	time.Sleep(100 * time.Millisecond)
 }
 
 func TestRoomService_ConcurrentAnswers(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, _ := service.CreateRoom(ctx, "default")
@@ -105,22 +142,23 @@ func TestRoomService_ConcurrentAnswers(t *testing.T) {
 }
 
 func TestRoomService_CancelTurn(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, _ := service.CreateRoom(ctx, "default")
+	eventCh, unsubscribe := subscribeRoomEvents(t, env.eventSink, room.ID)
+	defer unsubscribe()
 	service.SubmitAnswer(ctx, room.ID, "Hello")
-
-	// Wait a bit for streaming to start
-	time.Sleep(50 * time.Millisecond)
 
 	err := service.CancelTurn(ctx, room.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	waitForEvent(t, eventCh, domain.EventTurnCancelled, 500*time.Millisecond)
+
 	// Verify room state
-	time.Sleep(20 * time.Millisecond)
 	got, _ := service.GetRoom(ctx, room.ID)
 	if got.State != domain.RoomStateCancelled {
 		t.Errorf("Expected state %v, got %v", domain.RoomStateCancelled, got.State)
@@ -128,7 +166,8 @@ func TestRoomService_CancelTurn(t *testing.T) {
 }
 
 func TestRoomService_GetRoom(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	created, _ := service.CreateRoom(ctx, "default")
@@ -144,7 +183,8 @@ func TestRoomService_GetRoom(t *testing.T) {
 }
 
 func TestRoomService_GetNonExistentRoom(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	_, err := service.GetRoom(ctx, "nonexistent")
@@ -154,7 +194,8 @@ func TestRoomService_GetNonExistentRoom(t *testing.T) {
 }
 
 func TestRoomService_CancelWithoutActiveTurn(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, _ := service.CreateRoom(ctx, "default")
@@ -166,10 +207,13 @@ func TestRoomService_CancelWithoutActiveTurn(t *testing.T) {
 }
 
 func TestRoomService_MultipleRounds(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	room, _ := service.CreateRoom(ctx, "default")
+	eventCh, unsubscribe := subscribeRoomEvents(t, env.eventSink, room.ID)
+	defer unsubscribe()
 
 	// First turn
 	turn1, _ := service.SubmitAnswer(ctx, room.ID, "First")
@@ -178,7 +222,7 @@ func TestRoomService_MultipleRounds(t *testing.T) {
 	}
 
 	// Wait for completion
-	time.Sleep(200 * time.Millisecond)
+	waitForEvent(t, eventCh, domain.EventTurnCompleted, 500*time.Millisecond)
 
 	// Second turn
 	turn2, err := service.SubmitAnswer(ctx, room.ID, "Second")
@@ -191,7 +235,8 @@ func TestRoomService_MultipleRounds(t *testing.T) {
 }
 
 func TestRoomService_CreateRoomWithInvalidScenery(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	_, err := service.CreateRoom(ctx, "nonexistent-scenery")
@@ -201,7 +246,8 @@ func TestRoomService_CreateRoomWithInvalidScenery(t *testing.T) {
 }
 
 func TestRoomService_SubmitAnswerToNonExistentRoom(t *testing.T) {
-	service := setupTestService()
+	env := setupTestService()
+	service := env.service
 	ctx := context.Background()
 
 	_, err := service.SubmitAnswer(ctx, "nonexistent", "test")
