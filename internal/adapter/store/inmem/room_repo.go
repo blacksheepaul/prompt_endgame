@@ -2,13 +2,10 @@ package inmem
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 )
-
-var ErrRoomNotFound = errors.New("room not found")
 
 // RoomRepo implements port.RoomRepository with in-memory storage
 type RoomRepo struct {
@@ -36,7 +33,7 @@ func (r *RoomRepo) Get(ctx context.Context, id domain.RoomID) (domain.Room, erro
 	defer r.mu.RUnlock()
 	room, ok := r.rooms[id]
 	if !ok {
-		return domain.Room{}, ErrRoomNotFound
+		return domain.Room{}, domain.ErrRoomNotFound
 	}
 	return *room, nil
 }
@@ -49,7 +46,7 @@ func (r *RoomRepo) Update(ctx context.Context, id domain.RoomID, fn func(*domain
 	defer r.mu.Unlock()
 	room, ok := r.rooms[id]
 	if !ok {
-		return ErrRoomNotFound
+		return domain.ErrRoomNotFound
 	}
 	return fn(room)
 }
@@ -57,6 +54,9 @@ func (r *RoomRepo) Update(ctx context.Context, id domain.RoomID, fn func(*domain
 func (r *RoomRepo) Delete(ctx context.Context, id domain.RoomID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, ok := r.rooms[id]; !ok {
+		return domain.ErrRoomNotFound
+	}
 	delete(r.rooms, id)
 	return nil
 }

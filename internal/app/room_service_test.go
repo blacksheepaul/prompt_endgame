@@ -240,8 +240,8 @@ func TestRoomService_CreateRoomWithInvalidScenery(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := service.CreateRoom(ctx, "nonexistent-scenery")
-	if err == nil {
-		t.Error("Expected error for nonexistent scenery")
+	if err != ErrInvalidScenery {
+		t.Errorf("Expected ErrInvalidScenery, got %v", err)
 	}
 }
 
@@ -251,7 +251,7 @@ func TestRoomService_SubmitAnswerToNonExistentRoom(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := service.SubmitAnswer(ctx, "nonexistent", "test")
-	if err != ErrRoomNotFound {
+	if err != domain.ErrRoomNotFound {
 		t.Errorf("Expected ErrRoomNotFound, got %v", err)
 	}
 }

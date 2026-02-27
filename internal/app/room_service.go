@@ -2,17 +2,10 @@ package app
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
-)
-
-var (
-	ErrRoomNotFound = errors.New("room not found")
-	ErrRoomBusy     = errors.New("room is busy")
-	ErrNoActiveTurn = errors.New("no active turn to cancel")
 )
 
 // RoomService handles room-related business logic
@@ -46,7 +39,7 @@ func (s *RoomService) CreateRoom(ctx context.Context, sceneryID string) (*domain
 	}
 	_, err := s.sceneryRepo.Get(ctx, sceneryID)
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidScenery
 	}
 
 	room := domain.NewRoom(sceneryID)
@@ -90,10 +83,14 @@ func (s *RoomService) SubmitAnswer(ctx context.Context, roomID domain.RoomID, us
 	})
 
 	if err != nil {
-		if err == ErrRoomBusy {
+		switch err {
+		case ErrRoomBusy:
+			return nil, ErrRoomBusy
+		case domain.ErrRoomNotFound:
+			return nil, domain.ErrRoomNotFound
+		default:
 			return nil, err
 		}
-		return nil, ErrRoomNotFound
 	}
 
 	// Emit turn started event
@@ -131,10 +128,14 @@ func (s *RoomService) CancelTurn(ctx context.Context, roomID domain.RoomID) erro
 	})
 
 	if err != nil {
-		if err == ErrNoActiveTurn {
+		switch err {
+		case ErrNoActiveTurn:
+			return err
+		case domain.ErrRoomNotFound:
+			return domain.ErrRoomNotFound
+		default:
 			return err
 		}
-		return ErrRoomNotFound
 	}
 
 	// Emit cancelled event

@@ -198,6 +198,15 @@ flowchart LR
 
 ## Failure Modes & Recovery
 
+### Error taxonomy
+
+| 错误类型 | 应定义在 |
+| --- | --- |
+| 业务规则违反 | Domain 层 |
+| 应用流程控制错误 | Application 层 |
+| 外部系统失败 | Port（接口定义在 Domain/应用，错误类型通常在 Domain） |
+| 技术细节错误（DB timeout / HTTP 500） | Adapter 层 |
+
 ## Glossary
 
 名词对齐：

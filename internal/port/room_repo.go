@@ -15,6 +15,7 @@ type RoomRepository interface {
 	Get(ctx context.Context, id domain.RoomID) (domain.Room, error)
 
 	// Update updates a room by applying fn within a lock (thread-safe)
+	// DO NOT involve I/O or long-running operations in fn to avoid blocking other operations
 	Update(ctx context.Context, id domain.RoomID, fn func(*domain.Room) error) error
 
 	// Delete removes a room

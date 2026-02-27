@@ -91,10 +91,12 @@ func (h *Handlers) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err {
-		case app.ErrRoomNotFound:
+		case domain.ErrRoomNotFound:
 			status = http.StatusNotFound
 		case app.ErrRoomBusy:
 			status = http.StatusConflict
+		case app.ErrInvalidScenery:
+			status = http.StatusBadRequest
 		}
 		writeError(w, status, err.Error())
 		return
@@ -113,7 +115,7 @@ func (h *Handlers) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	// Check room exists
 	_, err := h.roomService.GetRoom(r.Context(), roomID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "room not found")
+		writeError(w, http.StatusNotFound, domain.ErrRoomNotFound.Error())
 		return
 	}
 
@@ -132,10 +134,10 @@ func (h *Handlers) CancelTurn(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err {
-		case app.ErrRoomNotFound:
+		case domain.ErrRoomNotFound:
 			status = http.StatusNotFound
 		case app.ErrNoActiveTurn:
-			status = http.StatusBadRequest
+			status = http.StatusConflict
 		}
 		writeError(w, status, err.Error())
 		return

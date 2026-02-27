@@ -87,7 +87,7 @@ func TestRoomRepo_UpdateNonExistent(t *testing.T) {
 	err := repo.Update(ctx, "nonexistent", func(r *domain.Room) error {
 		return nil
 	})
-	if err != ErrRoomNotFound {
+	if err != domain.ErrRoomNotFound {
 		t.Errorf("Expected ErrRoomNotFound, got %v", err)
 	}
 }
@@ -131,7 +131,15 @@ func TestRoomRepo_Delete(t *testing.T) {
 
 	// Verify it's gone
 	_, err := repo.Get(ctx, room.ID)
-	if err != ErrRoomNotFound {
+	if err != domain.ErrRoomNotFound {
 		t.Errorf("Expected ErrRoomNotFound after delete, got %v", err)
+	}
+
+	if err := repo.Delete(ctx, room.ID); err != domain.ErrRoomNotFound {
+		t.Errorf("Expected ErrRoomNotFound on delete, got %v", err)
+	}
+
+	if err := repo.Delete(ctx, "missing"); err != domain.ErrRoomNotFound {
+		t.Errorf("Expected ErrRoomNotFound on delete, got %v", err)
 	}
 }
