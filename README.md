@@ -10,10 +10,10 @@
 
 #### 技术设计原则：
 
--   使用 SSE 向客户端传输 token 流
--   使用 WS 作为控制面（取消/改参/心跳/查询状态）
--   可拔插的 LLM Provider（vLLM、外部 API、Mock）
--   使用 Grafana+Prometheus+Loki+OpenTelemetry 支撑可观测性，所有关键行为都可观测：排队、熔断、限流、首 token、tokens/s
+- 使用 SSE 向客户端传输 token 流
+- 使用 WS 作为控制面（取消/改参/心跳/查询状态）
+- 可拔插的 LLM Provider（vLLM、外部 API、Mock）
+- 使用 Grafana+Prometheus+Loki+OpenTelemetry 支撑可观测性，所有关键行为都可观测：排队、熔断、限流、首 token、tokens/s
 
 #### 典型场景
 
@@ -36,308 +36,118 @@ TODO: 此处应有一张图片或 高清 gif
 
 ### Todo List
 
-#### Stage 1, playable MVP
+#### Stage Zero：文档建设
 
-1. **跑通极简骨架**
+- [x] `docs/architecture.md` 描述架构设计，包括数据模型、数据流转
 
-    - minimal API
+#### Stage A：网关骨架完善
 
-        - `POST /rooms`
-        - `POST /rooms/:id/answer`
-        - `GET /rooms/:id/events` (SSE)
-        - `POST /rooms/:id/cancel`
+- [x] 语义与状态机梳理：room/turn 状态转移、允许/拒绝条件、错误语义
+- [x] 幂等与错误语义统一：SubmitAnswer/Cancel 的幂等边界与 HTTP 语义
+- [ ] SSE 回放一致性：fromOffset/Last-Event-ID 语义与历史+实时拼接
+- [ ] 断线重连一致性：不重不漏校验与测试
+- [ ] cancel 可用性闭环：HTTP/WS cancel 立即停止 streaming，事件完整
+- [ ] 最小演示闭环：create/answer/stream/cancel 路径可演示说明
 
-    - SSE 单路流式输出（chunk 级事件）
-    - event log（append-only + fromOffset 回放）
+#### Stage B：高并发与流式 I/O
 
-2. **打断机制**
-    - HTTP/WS cancel，cancel 必须可靠（立即停止 streaming）
-    - trace 中标记 cancelled=true
-3. **可观测 v0**
+- [ ] 连接管理：SSE/WS 心跳、超时、最大连接数限制
+- [ ] 背压：worker pool + 队列上限 + reject/degrade 策略
+- [ ] 速率限制：按 room / IP / token 维度的限流策略
+- [ ] 幂等/重试：请求去重与重放安全
 
-    - OTEL tracing
+#### Stage C：可观测性
 
-        - http → app → provider 全链路 span
-        - attributes: `room.id`, `turn.id`, `provider`, `ttft_ms`
-        - first token 作为 span event
+- [ ] OTEL tracing：HTTP → App → Provider 全链路 span
+- [ ] Metrics：TTFT、tokens/s、cancel latency、队列长度
+- [ ] 结构化日志：room/turn 维度，错误与取消事件可追踪
 
-    - 最小指标
+#### Stage D：调度与 Provider 体系
 
-        - TTFT
-        - tokens/s
-        - cancel latency
+- [ ] Provider 抽象：mock + external API + vLLM 预留
+- [ ] 路由策略：local-prefer / cost-aware / quality-aware
+- [ ] 会话策略：sticky session + provider 选择可追踪
+- [ ] 熔断与 failover：按 provider 维度
 
-    - 结构化日志（room/turn 维度）
+#### Stage E：压测与性能素材
 
-4. **scenery & persona**
+- [ ] 基准压测脚本：hey/wrk + 并发曲线
+- [ ] 关键指标输出：p95/p99、TTFT 变化、tokens/s
+- [ ] pprof 截图：goroutine/heap
 
+#### Stage F：工程质量
+
+- [ ] 单测：room/turn/event sink/handler 关键路径
+- [ ] 集成测试：create/answer/stream/cancel 端到端
+- [ ] 负载测试：并发下的稳定性回归
+
+---
+
+#### Legacy（原规划中移除的条目）
+
+以下条目来自早期路线图，当前主线不再追踪，保留供参考。
+
+<details>
+<summary>展开查看</summary>
+
+**原 Stage 1 — 游戏玩法闭环**
+
+- **scenery & persona**
     - 最小 schema（Go struct + validate）
     - scenery#1：群面拷打（3 interviewers）
-    - persona 要有：
+    - persona 要有：archetype / system prompt / 禁忌与目标
 
-        - archetype
-        - system prompt
-        - 禁忌/目标
-
-5. **room / turn 状态机**
-
-    - 状态：
-
-        - Idle
-        - Streaming
-        - Cancelled
-        - Done
-
-    - 所有状态变化 → event 化
-
-6. **orchestrator v0**
-
+- **orchestrator v0**
     - 三个 agent 串行轮询发言
     - 用户回答 → 推进下一轮
-    - 支持策略：
+    - 支持策略：串行（v0 默认）/ 随机（feature flag）
+    - 预留接口：小模型调度
 
-        - 串行（v0 默认）
-        - 随机（feature flag）
-
-    - 预留接口：
-
-        - 小模型调度（Stage2 再上）
-
-7. **计分模型 + 结算**
-
+- **计分模型 + 结算**
     - hp / 认可度 / round
     - 失败原因必须 event 化
     - 回合结束自动结算
 
----
+- **Demo 打磨**
+    - 固定演示脚本：正常流 / cancel / 背压触发 / 断线重连
+    - 录屏 / gif
+    - README 演示说明
 
-##### 额外演示内容
+**原 Stage 2 — 稳定性与用户可见功能**
 
-8. **并发限流 / 背压**
+- **故障注入**（稳定性工程子项）
+    - 延迟 / 错误率 / 限流注入
+    - Demo 开关
 
-    - worker pool
-    - 队列长度上限
-    - reject / degrade 策略
-    - trace 标注：
-
-        - rejected
-        - queued
-
-9. **压测 & 性能素材**
-
-    - 压测脚本（hey/wrk/自写，都行，跑起来就行）
-    - README 输出：
-
-        - p95 / p99 延迟
-        - 并发下 TTFT 变化
-
-    - pprof
-
-        - goroutine
-        - heap
-
-    - 截图放 README
-
-10. **Demo 打磨**
-
--   固定演示脚本：
-
-    -   正常流
-    -   cancel
-    -   背压触发
-    -   断线重连
-
--   录屏 / gif
--   README 演示说明
-
-#### Stage 2, external demo
-
-**阶段目标：网关能力 + 稳定性工程 + 完整可观测**
-
-1. **Provider 抽象**
-
-    - interface 设计
-    - mock
-    - external API
-    - vLLM 本地模型
-
-2. **路由 & 会话**
-
-    - routing:
-
-        - local-prefer
-        - cost-aware
-        - quality-aware
-
-    - sticky session
-    - trace attributes:
-
-        - route_decision
-        - cost_score
-
-3. **稳定性工程**
-
-    - health check
-
-        - liveness
-        - readiness
-
-    - 熔断
-
-        - error-rate
-        - timeout
-
-    - 自动 failover
-    - 故障注入
-
-        - 延迟
-        - 错误率
-        - 限流
-
-    - trace 必须能看到：
-
-        - fallback_reason
-
-4. **可观测升级**
-
+- **可观测升级**（完整版，超出 Stage C 范围的部分）
     - metrics → Prometheus
     - dashboard → Grafana
     - logs → Loki
-    - tracing → OTEL 完整版
+    - tracing → OTEL 完整版（baggage / span link / error semantic）
 
-        - baggage
-        - span link
-        - error semantic
-
-5. **用户可见功能**
-
+- **用户可见功能**
     - 排行榜
     - event log replay（UI / CLI 均可）
-    - 自动报告 v0
+    - 自动报告 v0（失误点标注，rule-based / heuristic）
 
-        - 失误点标注
-        - rule-based / heuristic
+**原 Stage 3 — 产品化**
 
-#### Stage 3
+- **checkpoint 系统**
+    - 保存 room state + event offset
+    - 从 checkpoint 派生新 scenery（难度递增 / 分支剧情）
 
-阶段目标：高完成度、产品感
-
-1. **checkpoint 系统**
-
-    - 保存：
-
-        - room state
-        - event offset
-
-    - 从 checkpoint 派生新 scenery
-
-        - 难度递增
-        - 分支剧情
-
-2. **多语种**
-
+- **多语种**
     - 中英双语 persona
-    - 模拟：
+    - 模拟中文思考 → 英文表达
+    - 评估信息损失
 
-        - 中文思考 → 英文表达
-
-    - 评估：
-
-        - 信息损失
-
-3. **语音交互**
-
-    - ASR
-    - TTS
+- **语音交互**
+    - ASR / TTS
     - latency 统计
 
-4. **教学系统**
-
-    - 更精细评分
-
-        - 多维度
-        - 权重
-        - 证据 event
-
+- **教学系统**
+    - 更精细评分（多维度 / 权重 / 证据 event）
     - 追问树
-    - 更优答案建议
+    - 更优答案建议（rule + LLM hybrid）
 
-        - rule + LLM hybrid
-
-#### Gantt
-
-```mermaid
-gantt
-    title Stage 1 - Playable MVP
-    dateFormat YYYY-MM-DD
-
-    section 骨架(先跑起来再重构)
-    极简链路(create/answer/stream/cancel + event log) :a1, 2026-01-13, 2d
-    断线重连(fromOffset) + transcript一致性            :a2, after a1, 1d
-
-    section 可观测
-    OTEL tracing v0(http/app/provider spans + room/turn attrs) :b1, 2026-01-15, 1d
-    指标v0(TTFT/tokens/s/cancel-lat) + 结构化日志             :b2, after b1, 1d
-
-    section 内容与玩法闭环
-    scenery&persona最小schema + scenery#1(群面拷打)           :c1, 2026-01-16, 2d
-    room/turn状态机(Idle/Streaming/Done/Cancelled)            :c2, after c1, 1d
-    orchestrator v0(3 agents 串行轮询 + 用户推进)             :c3, after c2, 2d
-    计分模型v0(hp/认可度/round) + 结算(失败原因event化)        :c4, after c3, 1d
-
-    section 额外演示内容
-    worker pool + 队列上限 + reject策略(背压)                 :d1, 2026-01-22, 1d
-    压测脚本 + p95/p99 + pprof(goroutine/heap)截图            :d2, after d1, 1d
-
-    section Demo打磨
-    Demo脚本&彩排&修bug(含一次“取消/背压/重连”表演)           :e1, 2026-01-24, 2d
-```
-
-```mermaid
-gantt
-    title Stage 2 - External Demo
-    dateFormat YYYY-MM-DD
-
-    section Provider(可插拔)
-    provider接口抽象(从单体骨架重构切入点)            :a1, 2026-01-27, 2d
-    接入mock + external API                            :a2, after a1, 2d
-    接入vLLM(本地优先可配)                              :a3, after a2, 2d
-
-    section 路由与会话
-    路由策略v0(local-prefer / cost-aware / quality)     :b1, 2026-02-02, 2d
-    sticky session + session key(按room/turn维度)       :b2, after b1, 2d
-
-    section 稳定性工程
-    health check(readiness/liveness)                    :c1, 2026-02-06, 1d
-    熔断(按provider维度, error-rate/timeout)            :c2, after c1, 2d
-    failover(熔断/超时触发) + 超时预算                   :c3, after c2, 2d
-    故障注入(延迟/错误/限流) + Demo开关                  :c4, after c3, 1d
-
-    section 可观测信号升级
-    metrics(prometheus) + dashboard(grafana)            :d1, 2026-02-12, 2d
-    logs(loki) + trace完善(otel: baggage/links/events)  :d2, after d1, 2d
-    SLO视角展示(p99 TTFT / errors / saturation)         :d3, after d2, 1d
-
-    section 用户可见功能
-    event log replay(回放UI/CLI都行)                    :e1, 2026-02-17, 2d
-    排行榜(最小版)                                       :e2, after e1, 1d
-    自动报告v0(失误点标注: rule-based/heuristic)          :e3, after e2, 3d
-```
-
-```mermaid
-gantt
-    title Stage 3 - Productize
-    dateFormat YYYY-MM-DD
-
-    section 内容生产体系
-    checkpoint(保存room状态+事件偏移)                   :a1, 2026-02-17, 3d
-    基于checkpoint派生新scenery(分支/难度递增)           :a2, after a1, 4d
-
-    section 体验增强
-    中英双语(只做两套persona+提示词)                     :b1, 2026-02-24, 6d
-    语音输入(ASR) + TTS(可选供应商/本地)                 :b2, after b1, 7d
-
-    section 提升“产品感”
-    更精细评分(维度/权重/证据event)                      :c1, 2026-03-09, 5d
-    追问树/更优答案建议(半规则半模型)                     :c2, after c1, 5d
-```
+</details>
