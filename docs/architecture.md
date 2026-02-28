@@ -192,6 +192,11 @@ flowchart LR
 
 ## Streaming
 
+SSE 断线重连语义：
+
+- 使用 fromOffset 或 Last-Event-ID 读取历史事件
+- 历史回放与实时订阅必须原子化，避免事件丢失
+
 ## Concurrency contract
 
 ## Observability

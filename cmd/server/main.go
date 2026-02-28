@@ -33,6 +33,7 @@ func main() {
 	fmt.Println("  POST   /rooms/:id/answer - Submit an answer")
 	fmt.Println("  GET    /rooms/:id/events - SSE event stream")
 	fmt.Println("  POST   /rooms/:id/cancel - Cancel current turn")
+	fmt.Println("  GET    /supervisor/rooms - List rooms (supervisor)")
 	fmt.Println("  GET    /health          - Health check")
 
 	// Graceful shutdown
