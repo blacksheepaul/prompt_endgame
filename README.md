@@ -44,7 +44,7 @@ TODO: 此处应有一张图片或 高清 gif
 
 - [x] 语义与状态机梳理：room/turn 状态转移、允许/拒绝条件、错误语义
 - [x] 幂等与错误语义统一：SubmitAnswer/Cancel 的幂等边界与 HTTP 语义
-- [ ] SSE 回放一致性：fromOffset/Last-Event-ID 语义与历史+实时拼接
+- [x] SSE 回放一致性：fromOffset/Last-Event-ID 语义与历史+实时拼接
 - [ ] 断线重连一致性：不重不漏校验与测试
 - [ ] cancel 可用性闭环：HTTP/WS cancel 立即停止 streaming，事件完整
 - [ ] 最小演示闭环：create/answer/stream/cancel 路径可演示说明
