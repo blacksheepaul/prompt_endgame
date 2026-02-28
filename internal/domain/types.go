@@ -19,16 +19,16 @@ type RoomState string
 const (
 	RoomStateIdle      RoomState = "idle"
 	RoomStateStreaming RoomState = "streaming"
-	RoomStateEndgame   RoomState = "endgame"
+	RoomStateEndgame   RoomState = "endgame" // the game has ended but the room is still active for replay or review
 )
 
 // TurnState represents the current state of a turn
 type TurnState string
 
 const (
-	TurnStatePending   TurnState = "pending"
+	TurnStatePending   TurnState = "pending" // turn is created but not started yet
 	TurnStateStreaming TurnState = "streaming"
-	TurnStateDone      TurnState = "done"
+	TurnStateDone      TurnState = "done" // turn has completed
 	TurnStateCancelled TurnState = "cancelled"
 )
 

@@ -25,6 +25,10 @@
 
 - 断线重连期间的事件生产与回放（已补充见 `docs/user_story.md`）
 
+#### 前端（for 测试）
+
+https://github.com/blacksheepaul/prompt_endgame_fe
+
 #### 核心玩法设计
 
 类似象棋残局，你会面对一个固定的上下文，在此基础上有两种玩法模式：
@@ -49,7 +53,7 @@ TODO: 此处应有一张图片或 高清 gif
 - [x] SSE 回放一致性：fromOffset/Last-Event-ID 语义与历史+实时拼接
 - [x] 断线重连一致性：不重不漏校验与测试
 - [x] cancel 可用性闭环：HTTP/WS cancel 立即停止 streaming，事件完整
-- [ ] 最小演示闭环：create/answer/stream/cancel 路径可演示说明
+- [x] 最小演示闭环：create/answer/stream/cancel 路径可演示说明
 
 #### Stage B：高并发与流式 I/O
 
