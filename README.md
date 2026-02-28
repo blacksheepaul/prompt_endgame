@@ -21,7 +21,9 @@
 
 > 你是面试的 candidate，多个 interview agent 会针对你简历上的内容（其实是我简历上的内容）进行轮番拷打，每个 agent 都有各自的 persona
 
-#### 用户故事(TODO)
+#### 用户故事
+
+- 断线重连期间的事件生产与回放（已补充见 `docs/user_story.md`）
 
 #### 核心玩法设计
 
