@@ -43,27 +43,31 @@ func (s *EventSink) Append(ctx context.Context, event domain.Event) (domain.Offs
 	return offset, nil
 }
 
-func (s *EventSink) ReadFromOffset(ctx context.Context, roomID domain.RoomID, offset domain.Offset) (<-chan domain.Event, error) {
-	s.mu.RLock()
+func (s *EventSink) ReadFromOffsetAndSubscribe(ctx context.Context, roomID domain.RoomID, offset domain.Offset) ([]domain.Event, <-chan domain.Event, func(), error) {
+	s.mu.Lock()
 	roomEvents := s.events[roomID]
-	s.mu.RUnlock()
-
+	snapshot := make([]domain.Event, 0, len(roomEvents))
+	if int(offset) < len(roomEvents) {
+		snapshot = append(snapshot, roomEvents[int(offset):]...)
+	}
 	ch := make(chan domain.Event, 100)
+	s.subscribers[roomID] = append(s.subscribers[roomID], ch)
+	s.mu.Unlock()
 
-	go func() {
-		defer close(ch)
-
-		// Send historical events
-		for i := int(offset); i < len(roomEvents); i++ {
-			select {
-			case ch <- roomEvents[i]:
-			case <-ctx.Done():
-				return
+	unsubscribe := func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		subs := s.subscribers[roomID]
+		for i, sub := range subs {
+			if sub == ch {
+				s.subscribers[roomID] = append(subs[:i], subs[i+1:]...)
+				close(ch)
+				break
 			}
 		}
-	}()
+	}
 
-	return ch, nil
+	return snapshot, ch, unsubscribe, nil
 }
 
 func (s *EventSink) Subscribe(ctx context.Context, roomID domain.RoomID) (<-chan domain.Event, func()) {

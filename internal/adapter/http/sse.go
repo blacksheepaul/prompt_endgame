@@ -50,23 +50,20 @@ func streamSSE(w http.ResponseWriter, r *http.Request, eventSink port.EventSink,
 
 	ctx := r.Context()
 
-	// Read historical events first
-	historyCh, err := eventSink.ReadFromOffset(ctx, roomID, offset)
+	// Read historical events and subscribe to live events atomically
+	snapshot, liveCh, unsubscribe, err := eventSink.ReadFromOffsetAndSubscribe(ctx, roomID, offset)
 	if err != nil {
 		writeSSEError(w, flusher, "failed to read history")
 		return
 	}
+	defer unsubscribe()
 
 	// Stream historical events
-	for event := range historyCh {
+	for _, event := range snapshot {
 		if err := writeSSEEvent(w, flusher, event); err != nil {
 			return
 		}
 	}
-
-	// Subscribe to live events
-	liveCh, unsubscribe := eventSink.Subscribe(ctx, roomID)
-	defer unsubscribe()
 
 	// Stream live events
 	for {

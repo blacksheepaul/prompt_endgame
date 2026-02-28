@@ -26,47 +26,56 @@ func TestEventSink_AppendAndRead(t *testing.T) {
 		}
 	}
 
-	// Read from offset 0
-	ch, err := sink.ReadFromOffset(ctx, roomID, 0)
+	snapshot, liveCh, unsubscribe, err := sink.ReadFromOffsetAndSubscribe(ctx, roomID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer unsubscribe()
 
-	count := 0
-	for range ch {
-		count++
+	if len(snapshot) != 5 {
+		t.Fatalf("Expected 5 events in snapshot, got %d", len(snapshot))
 	}
 
-	if count != 5 {
-		t.Errorf("Expected 5 events, got %d", count)
+	select {
+	case <-liveCh:
+		t.Fatal("Did not expect live events")
+	default:
 	}
 }
 
-func TestEventSink_ReadFromOffset(t *testing.T) {
+func TestEventSink_ReadFromOffsetAndSubscribe(t *testing.T) {
 	sink := NewEventSink()
 	ctx := context.Background()
 
 	roomID := domain.NewRoomID()
 
-	// Append 10 events
-	for i := 0; i < 10; i++ {
+	// Append 3 events
+	for i := 0; i < 3; i++ {
 		event := domain.NewEvent(domain.EventTokenReceived, roomID, "", nil)
-		sink.Append(ctx, event)
+		if _, err := sink.Append(ctx, event); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Read from offset 5
-	ch, err := sink.ReadFromOffset(ctx, roomID, 5)
+	snapshot, liveCh, unsubscribe, err := sink.ReadFromOffsetAndSubscribe(ctx, roomID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer unsubscribe()
 
-	count := 0
-	for range ch {
-		count++
+	if len(snapshot) != 2 {
+		t.Fatalf("Expected 2 events in snapshot, got %d", len(snapshot))
 	}
 
-	if count != 5 {
-		t.Errorf("Expected 5 events from offset 5, got %d", count)
+	// Append a live event after subscribe
+	go func() {
+		_, _ = sink.Append(ctx, domain.NewEvent(domain.EventTokenReceived, roomID, "", nil))
+	}()
+
+	select {
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Timeout waiting for live event")
+	case <-liveCh:
 	}
 }
 
@@ -121,17 +130,29 @@ func TestEventSink_MultipleRooms(t *testing.T) {
 	}
 
 	// Read room1 events
-	ch1, _ := sink.ReadFromOffset(ctx, room1, 0)
-	count1 := 0
-	for range ch1 {
-		count1++
+	snapshot1, ch1, unsubscribe1, err := sink.ReadFromOffsetAndSubscribe(ctx, room1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe1()
+	count1 := len(snapshot1)
+	select {
+	case <-ch1:
+		t.Fatal("Did not expect live events")
+	default:
 	}
 
 	// Read room2 events
-	ch2, _ := sink.ReadFromOffset(ctx, room2, 0)
-	count2 := 0
-	for range ch2 {
-		count2++
+	snapshot2, ch2, unsubscribe2, err := sink.ReadFromOffsetAndSubscribe(ctx, room2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe2()
+	count2 := len(snapshot2)
+	select {
+	case <-ch2:
+		t.Fatal("Did not expect live events")
+	default:
 	}
 
 	if count1 != 3 {
@@ -183,10 +204,16 @@ func TestEventSink_ConcurrentAppend(t *testing.T) {
 	}
 
 	// Verify all events are stored
-	ch, _ := sink.ReadFromOffset(ctx, roomID, 0)
-	count := 0
-	for range ch {
-		count++
+	snapshot, ch, unsubscribe, err := sink.ReadFromOffsetAndSubscribe(ctx, roomID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
+	count := len(snapshot)
+	select {
+	case <-ch:
+		t.Fatal("Did not expect live events")
+	default:
 	}
 
 	if count != numGoroutines {
