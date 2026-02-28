@@ -114,34 +114,20 @@ func (s *RoomService) SubmitAnswer(ctx context.Context, roomID domain.RoomID, us
 func (s *RoomService) CancelTurn(ctx context.Context, roomID domain.RoomID) error {
 	var turnID domain.TurnID
 
-	// Cancel via runtime first
-	s.turnRuntime.Cancel(roomID)
-
-	// Thread-safe update within lock
-	err := s.roomRepo.Update(ctx, roomID, func(room *domain.Room) error {
-		if !room.IsStreaming() {
-			return ErrNoActiveTurn
-		}
-
-		room.State = domain.RoomStateCancelled
-		room.UpdatedAt = time.Now()
-
-		if room.CurrentTurn != nil {
-			turnID = room.CurrentTurn.ID
-		}
-		return nil
-	})
-
+	// Check room is streaming and get turn ID
+	room, err := s.roomRepo.Get(ctx, roomID)
 	if err != nil {
-		switch err {
-		case ErrNoActiveTurn:
-			return err
-		case domain.ErrRoomNotFound:
-			return domain.ErrRoomNotFound
-		default:
-			return err
-		}
+		return domain.ErrRoomNotFound
 	}
+	if !room.IsStreaming() {
+		return ErrNoActiveTurn
+	}
+	if room.CurrentTurn != nil {
+		turnID = room.CurrentTurn.ID
+	}
+
+	// Cancel via runtime (triggers ctx cancellation)
+	s.turnRuntime.Cancel(roomID)
 
 	// Emit cancelled event
 	event := domain.NewEvent(domain.EventTurnCancelled, roomID, turnID, nil)
