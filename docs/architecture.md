@@ -159,15 +159,15 @@ stateDiagram-v2
     Done --> Streaming: answer received
     Streaming --> Done: turn completed
     Streaming --> Cancelled: cancel
+    Cancelled --> Idle: cleanup
     Streaming --> Idle: error (WIP)
-    Cancelled --> Idle: reset (WIP)
 ```
 
 Current rules:
 
 - SubmitAnswer allowed only when RoomState is Idle or Done
 - Cancel allowed only when RoomState is Streaming
-- Cancelled is terminal until reset (WIP)
+- Cancel moves the room to Cancelled, then auto-resets to Idle after cleanup
 
 ## Event log
 

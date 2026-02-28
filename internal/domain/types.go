@@ -21,6 +21,7 @@ const (
 	RoomStateStreaming RoomState = "streaming"
 	RoomStateCancelled RoomState = "cancelled"
 	RoomStateDone      RoomState = "done"
+	RoomStateEndgame   RoomState = "endgame"
 )
 
 // NewRoomID generates a new unique RoomID
