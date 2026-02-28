@@ -17,6 +17,7 @@ type Turn struct {
 	ID        TurnID     `json:"id"`
 	RoomID    RoomID     `json:"room_id"`
 	Round     int        `json:"round"`
+	State     TurnState  `json:"state"`
 	UserInput string     `json:"user_input"`
 	Responses []Response `json:"responses,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
