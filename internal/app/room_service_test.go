@@ -165,6 +165,44 @@ func TestRoomService_CancelTurn(t *testing.T) {
 	}
 }
 
+func TestRoomService_CancelStopsStreaming(t *testing.T) {
+	roomRepo := inmem.NewRoomRepo()
+	eventSink := inmem.NewEventSink()
+	llmProvider := mock.NewProvider(50 * time.Millisecond)
+	sceneryRepo := fs.NewRepo("./testdata", true)
+
+	turnRuntime := NewTurnRuntime(llmProvider, eventSink, roomRepo, sceneryRepo)
+	service := NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime)
+
+	ctx := context.Background()
+	room, _ := service.CreateRoom(ctx, "default")
+
+	eventCh, unsubscribe := subscribeRoomEvents(t, eventSink, room.ID)
+	defer unsubscribe()
+
+	_, err := service.SubmitAnswer(ctx, room.ID, "Hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	waitForEvent(t, eventCh, domain.EventTurnStarted, 200*time.Millisecond)
+
+	if err := service.CancelTurn(ctx, room.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForEvent(t, eventCh, domain.EventTurnCancelled, 200*time.Millisecond)
+
+	select {
+	case event := <-eventCh:
+		if event.Type == domain.EventTurnCompleted {
+			t.Fatal("Unexpected TurnCompleted after cancel")
+		}
+	case <-time.After(150 * time.Millisecond):
+		// no completion expected
+	}
+}
+
 func TestRoomService_GetRoom(t *testing.T) {
 	env := setupTestService()
 	service := env.service
