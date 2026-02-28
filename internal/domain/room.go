@@ -58,5 +58,5 @@ func (r *Room) IsStreaming() bool {
 
 // CanStartTurn checks if a new turn can be started
 func (r *Room) CanStartTurn() bool {
-	return r.State == RoomStateIdle || r.State == RoomStateDone
+	return r.State == RoomStateIdle
 }
