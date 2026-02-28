@@ -59,6 +59,11 @@ func (s *RoomService) GetRoom(ctx context.Context, id domain.RoomID) (domain.Roo
 	return s.roomRepo.Get(ctx, id)
 }
 
+// ListRooms returns a snapshot of all rooms
+func (s *RoomService) ListRooms(ctx context.Context) ([]domain.Room, error) {
+	return s.roomRepo.List(ctx)
+}
+
 // SubmitAnswer processes a user answer and triggers agent responses
 func (s *RoomService) SubmitAnswer(ctx context.Context, roomID domain.RoomID, userInput string) (*domain.Turn, error) {
 	var turn *domain.Turn

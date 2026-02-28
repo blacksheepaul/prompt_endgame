@@ -60,3 +60,13 @@ func (r *RoomRepo) Delete(ctx context.Context, id domain.RoomID) error {
 	delete(r.rooms, id)
 	return nil
 }
+
+func (r *RoomRepo) List(ctx context.Context) ([]domain.Room, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	rooms := make([]domain.Room, 0, len(r.rooms))
+	for _, room := range r.rooms {
+		rooms = append(rooms, *room)
+	}
+	return rooms, nil
+}

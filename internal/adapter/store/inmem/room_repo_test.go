@@ -143,3 +143,33 @@ func TestRoomRepo_Delete(t *testing.T) {
 		t.Errorf("Expected ErrRoomNotFound on delete, got %v", err)
 	}
 }
+
+func TestRoomRepo_List(t *testing.T) {
+	repo := NewRoomRepo()
+	ctx := context.Background()
+
+	rooms, err := repo.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rooms) != 0 {
+		t.Errorf("Expected 0 rooms, got %d", len(rooms))
+	}
+
+	room1 := domain.NewRoom("test-1")
+	room2 := domain.NewRoom("test-2")
+	if err := repo.Save(ctx, room1); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Save(ctx, room2); err != nil {
+		t.Fatal(err)
+	}
+
+	rooms, err = repo.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rooms) != 2 {
+		t.Fatalf("Expected 2 rooms, got %d", len(rooms))
+	}
+}

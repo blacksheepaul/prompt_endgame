@@ -20,4 +20,7 @@ type RoomRepository interface {
 
 	// Delete removes a room
 	Delete(ctx context.Context, id domain.RoomID) error
+
+	// List returns a snapshot of all rooms
+	List(ctx context.Context) ([]domain.Room, error)
 }

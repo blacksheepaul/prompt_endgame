@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/blacksheepaul/prompt_endgame/internal/app"
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
@@ -33,6 +34,14 @@ type CreateRoomResponse struct {
 	ID        string `json:"id"`
 	SceneryID string `json:"scenery_id"`
 	State     string `json:"state"`
+}
+
+// SupervisorRoomResponse is the response payload for supervisor room list
+type SupervisorRoomResponse struct {
+	ID        string    `json:"id"`
+	SceneryID string    `json:"scenery_id"`
+	State     string    `json:"state"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // AnswerRequest is the request body for submitting an answer
@@ -144,6 +153,27 @@ func (h *Handlers) CancelTurn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SupervisorRooms handles GET /supervisor/rooms
+func (h *Handlers) SupervisorRooms(w http.ResponseWriter, r *http.Request) {
+	rooms, err := h.roomService.ListRooms(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := make([]SupervisorRoomResponse, 0, len(rooms))
+	for _, room := range rooms {
+		resp = append(resp, SupervisorRoomResponse{
+			ID:        room.ID.String(),
+			SceneryID: room.SceneryID,
+			State:     string(room.State),
+			UpdatedAt: room.UpdatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

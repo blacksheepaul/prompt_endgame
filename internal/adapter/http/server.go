@@ -27,6 +27,7 @@ func NewServer(addr string, roomService *app.RoomService, eventSink port.EventSi
 	mux.HandleFunc("POST /rooms/{id}/answer", handlers.SubmitAnswer)
 	mux.HandleFunc("GET /rooms/{id}/events", handlers.StreamEvents)
 	mux.HandleFunc("POST /rooms/{id}/cancel", handlers.CancelTurn)
+	mux.HandleFunc("GET /supervisor/rooms", handlers.SupervisorRooms)
 
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
