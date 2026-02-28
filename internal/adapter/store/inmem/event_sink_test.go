@@ -79,6 +79,79 @@ func TestEventSink_ReadFromOffsetAndSubscribe(t *testing.T) {
 	}
 }
 
+func TestEventSink_ReconnectNoGapNoDup(t *testing.T) {
+	sink := NewEventSink()
+	ctx := context.Background()
+
+	roomID := domain.NewRoomID()
+
+	for i := 0; i < 3; i++ {
+		if _, err := sink.Append(ctx, domain.NewEvent(domain.EventTokenReceived, roomID, "", nil)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snapshot, liveCh, unsubscribe, err := sink.ReadFromOffsetAndSubscribe(ctx, roomID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seen := make([]domain.Event, 0, 5)
+	seen = append(seen, snapshot...)
+
+	for i := 0; i < 2; i++ {
+		if _, err := sink.Append(ctx, domain.NewEvent(domain.EventTokenReceived, roomID, "", nil)); err != nil {
+			unsubscribe()
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-time.After(200 * time.Millisecond):
+			unsubscribe()
+			t.Fatal("Timeout waiting for live event")
+		case event := <-liveCh:
+			seen = append(seen, event)
+		}
+	}
+
+	unsubscribe()
+
+	lastOffset := seen[len(seen)-1].Offset
+	if lastOffset != 4 {
+		t.Fatalf("Expected last offset 4, got %d", lastOffset)
+	}
+
+	for i := 0; i < 2; i++ {
+		if _, err := sink.Append(ctx, domain.NewEvent(domain.EventTokenReceived, roomID, "", nil)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snapshot2, liveCh2, unsubscribe2, err := sink.ReadFromOffsetAndSubscribe(ctx, roomID, lastOffset+1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe2()
+
+	if len(snapshot2) != 2 {
+		t.Fatalf("Expected 2 events in snapshot, got %d", len(snapshot2))
+	}
+
+	select {
+	case <-liveCh2:
+		t.Fatal("Did not expect live events")
+	default:
+	}
+
+	for i := 0; i < len(seen)-1; i++ {
+		if seen[i].Offset+1 != seen[i+1].Offset {
+			t.Fatalf("Offsets not sequential at %d", i)
+		}
+	}
+}
+
 func TestEventSink_Subscribe(t *testing.T) {
 	sink := NewEventSink()
 	ctx := context.Background()
