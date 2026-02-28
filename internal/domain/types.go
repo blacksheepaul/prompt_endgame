@@ -19,9 +19,17 @@ type RoomState string
 const (
 	RoomStateIdle      RoomState = "idle"
 	RoomStateStreaming RoomState = "streaming"
-	RoomStateCancelled RoomState = "cancelled"
-	RoomStateDone      RoomState = "done"
 	RoomStateEndgame   RoomState = "endgame"
+)
+
+// TurnState represents the current state of a turn
+type TurnState string
+
+const (
+	TurnStatePending   TurnState = "pending"
+	TurnStateStreaming TurnState = "streaming"
+	TurnStateDone      TurnState = "done"
+	TurnStateCancelled TurnState = "cancelled"
 )
 
 // NewRoomID generates a new unique RoomID
