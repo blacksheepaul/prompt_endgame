@@ -76,6 +76,13 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 		r.streamAgent(ctx, roomID, turn, agent)
 	}
 
+	// avoid sending completion event if context was cancelled
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
 	// Mark turn as completed
 	r.completeTurn(ctx, roomID, turn)
 }
