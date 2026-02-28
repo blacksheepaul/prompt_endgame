@@ -47,6 +47,7 @@ func NewTurn(roomID RoomID, round int, userInput string) *Turn {
 		ID:        NewTurnID(),
 		RoomID:    roomID,
 		Round:     round,
+		State:     TurnStatePending,
 		UserInput: userInput,
 		CreatedAt: time.Now(),
 	}

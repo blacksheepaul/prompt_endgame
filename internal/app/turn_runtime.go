@@ -44,11 +44,28 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 	r.cancels[roomID] = cancel
 	r.mu.Unlock()
 
+	turn.State = domain.TurnStateStreaming
+
 	defer func() {
 		r.mu.Lock()
 		delete(r.cancels, roomID)
 		r.mu.Unlock()
 		cancel()
+
+		// Determine turn final state based on context
+		if ctx.Err() != nil && turn.State == domain.TurnStateStreaming {
+			turn.State = domain.TurnStateCancelled
+		}
+
+		// Room always returns to Idle after turn ends
+		r.roomRepo.Update(context.Background(), roomID, func(room *domain.Room) error {
+			if room.CurrentTurn != nil {
+				room.CurrentTurn.State = turn.State
+			}
+			room.State = domain.RoomStateIdle
+			room.UpdatedAt = time.Now()
+			return nil
+		})
 	}()
 
 	// Get room to retrieve scenery ID
@@ -129,12 +146,7 @@ func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, tur
 }
 
 func (r *TurnRuntime) completeTurn(ctx context.Context, roomID domain.RoomID, turn *domain.Turn) {
-	// Use Update for thread safety
-	r.roomRepo.Update(ctx, roomID, func(r *domain.Room) error {
-		r.State = domain.RoomStateDone
-		r.UpdatedAt = time.Now()
-		return nil
-	})
+	turn.State = domain.TurnStateDone
 
 	event := domain.NewEvent(domain.EventTurnCompleted, roomID, turn.ID, nil)
 	r.eventSink.Append(ctx, event)
