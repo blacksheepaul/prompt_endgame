@@ -93,24 +93,32 @@ func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, tur
 	tokenCh := r.llmProvider.StreamCompletion(ctx, agent.ID, prompt)
 
 	var content string
-	for token := range tokenCh {
-		if token.Error != nil {
-			r.emitError(ctx, roomID, turn.ID, "stream_error", token.Error.Error())
+	for {
+		select {
+		case <-ctx.Done():
 			return
+		case token, ok := <-tokenCh:
+			if !ok {
+				return
+			}
+			if token.Error != nil {
+				r.emitError(ctx, roomID, turn.ID, "stream_error", token.Error.Error())
+				return
+			}
+
+			if token.Done {
+				return
+			}
+
+			content += token.Token
+
+			// Emit token event
+			event := domain.NewEvent(domain.EventTokenReceived, roomID, turn.ID, domain.TokenPayload{
+				AgentID: agent.ID,
+				Token:   token.Token,
+			})
+			r.eventSink.Append(ctx, event)
 		}
-
-		if token.Done {
-			break
-		}
-
-		content += token.Token
-
-		// Emit token event
-		event := domain.NewEvent(domain.EventTokenReceived, roomID, turn.ID, domain.TokenPayload{
-			AgentID: agent.ID,
-			Token:   token.Token,
-		})
-		r.eventSink.Append(ctx, event)
 	}
 
 	// Store response
