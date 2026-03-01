@@ -67,6 +67,7 @@ TODO: 此处应有一张图片或 高清 gif
 - [ ] OTEL tracing：HTTP → App → Provider 全链路 span
 - [ ] Metrics：TTFT、tokens/s、cancel latency、队列长度
 - [ ] 结构化日志：room/turn 维度，错误与取消事件可追踪
+- [ ] 精确 Tokenizer：基于 tiktoken/sentencepiece 的 token 计算（用于计费、统计、指标等）
 
 #### Stage D：调度与 Provider 体系
 
