@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"time"
 
+	"github.com/blacksheepaul/prompt_endgame/internal/adapter/metrics"
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
 )
@@ -38,6 +40,14 @@ func NewTurnRuntime(
 
 // ExecuteTurn runs the turn execution for all agents
 func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, turn *domain.Turn) {
+	startTime := time.Now()
+	metrics.ActiveTurns.Inc()
+	metrics.Goroutines.Set(float64(runtime.NumGoroutine()))
+	defer func() {
+		metrics.ActiveTurns.Dec()
+		metrics.Goroutines.Set(float64(runtime.NumGoroutine()))
+	}()
+
 	ctx, cancel := context.WithCancel(ctx)
 
 	r.mu.Lock()
@@ -56,6 +66,10 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 		if ctx.Err() != nil && turn.State == domain.TurnStateStreaming {
 			turn.State = domain.TurnStateCancelled
 		}
+
+		duration := time.Since(startTime).Seconds()
+		metrics.TurnDuration.Observe(duration)
+		metrics.TurnTotal.WithLabelValues(string(turn.State)).Inc()
 
 		// Room always returns to Idle after turn ends
 		r.roomRepo.Update(context.Background(), roomID, func(room *domain.Room) error {
