@@ -19,6 +19,7 @@ type RoomState string
 const (
 	RoomStateIdle      RoomState = "idle"
 	RoomStateStreaming RoomState = "streaming"
+	RoomStateCancelled RoomState = "cancelled"
 	RoomStateEndgame   RoomState = "endgame" // the game has ended but the room is still active for replay or review
 )
 
