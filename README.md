@@ -55,32 +55,32 @@ TODO: 此处应有一张图片或 高清 gif
 - [x] cancel 可用性闭环：HTTP/WS cancel 立即停止 streaming，事件完整
 - [x] 最小演示闭环：create/answer/stream/cancel 路径可演示说明
 
-#### Stage B：高并发与流式 I/O
+#### Stage B：可观测性与 Baseline 压测
+
+- [ ] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
+- [ ] 分级压测建立 Baseline：10/50/100 并发测试，收集内存、延迟、goroutine 曲线
+- [ ] 关键指标输出：p95/p99、TTFT、tokens/s、pprof 截图
+
+#### Stage C：高并发与流式 I/O（基于 Baseline 优化）
 
 - [ ] 连接管理：SSE/WS 心跳、超时、最大连接数限制
-- [ ] 背压：worker pool + 队列上限 + reject/degrade 策略
+- [ ] 背压：worker pool + 队列上限 + reject/degrade 策略（基于压测数据调参）
 - [ ] 速率限制：按 room / IP / token 维度的限流策略
 - [ ] 幂等/重试：请求去重与重放安全
+- [ ] 优化效果验证：对比优化前后的 metrics 数据
 
-#### Stage C：可观测性
+#### Stage D：可观测性增强
 
 - [ ] OTEL tracing：HTTP → App → Provider 全链路 span
-- [ ] Metrics：TTFT、tokens/s、cancel latency、队列长度
 - [ ] 结构化日志：room/turn 维度，错误与取消事件可追踪
 - [ ] 精确 Tokenizer：基于 tiktoken/sentencepiece 的 token 计算（用于计费、统计、指标等）
 
-#### Stage D：调度与 Provider 体系
+#### Stage E：调度与 Provider 体系
 
 - [ ] Provider 抽象：mock + external API + vLLM 预留
 - [ ] 路由策略：local-prefer / cost-aware / quality-aware
 - [ ] 会话策略：sticky session + provider 选择可追踪
 - [ ] 熔断与 failover：按 provider 维度
-
-#### Stage E：压测与性能素材
-
-- [ ] 基准压测脚本：hey/wrk + 并发曲线
-- [ ] 关键指标输出：p95/p99、TTFT 变化、tokens/s
-- [ ] pprof 截图：goroutine/heap
 
 #### Stage F：工程质量
 
