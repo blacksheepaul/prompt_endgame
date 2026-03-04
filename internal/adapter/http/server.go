@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"time"
 
@@ -38,13 +39,57 @@ func NewServer(addr string, roomService *app.RoomService, eventSink port.EventSi
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Metrics endpoint for Prometheus (localhost only for security)
+	// Metrics endpoint for Prometheus (private networks only for security)
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
-		if !isLocalhost(r.RemoteAddr) {
+		if !isPrivateNetwork(r.RemoteAddr) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 		promhttp.Handler().ServeHTTP(w, r)
+	})
+
+	// pprof endpoints for profiling (localhost only for security)
+	mux.HandleFunc("GET /debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Index(w, r)
+	})
+	mux.HandleFunc("GET /debug/pprof/cmdline", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Cmdline(w, r)
+	})
+	mux.HandleFunc("GET /debug/pprof/profile", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Profile(w, r)
+	})
+	mux.HandleFunc("GET /debug/pprof/symbol", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Symbol(w, r)
+	})
+	mux.HandleFunc("GET /debug/pprof/trace", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Trace(w, r)
+	})
+	mux.HandleFunc("GET /debug/pprof/{name}", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocalhost(r.RemoteAddr) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		pprof.Handler(r.PathValue("name")).ServeHTTP(w, r)
 	})
 
 	return &Server{
@@ -96,4 +141,61 @@ func isLocalhost(remoteAddr string) bool {
 	}
 
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+// isPrivateNetwork checks if the remote address is from a private network
+// Allows localhost and private IPs (for Docker/internal networks)
+func isPrivateNetwork(remoteAddr string) bool {
+	if isLocalhost(remoteAddr) {
+		return true
+	}
+
+	// Handle IPv4-mapped IPv6 addresses like [::ffff:172.17.0.1]:port
+	if strings.HasPrefix(remoteAddr, "[") {
+		end := strings.LastIndex(remoteAddr, "]")
+		if end != -1 {
+			host := remoteAddr[1:end]
+			// Check for IPv4-mapped IPv6 format
+			if strings.HasPrefix(host, "::ffff:") {
+				ipv4 := strings.TrimPrefix(host, "::ffff:")
+				if isPrivateIPv4(ipv4) {
+					return true
+				}
+			}
+		}
+	}
+
+	// Extract host from "IP:port" format
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	// Check if it's a private IPv4 address
+	if isPrivateIPv4(host) {
+		return true
+	}
+
+	// Check if it's a private IPv6 address
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	return false
+}
+
+// isPrivateIPv4 checks if an IPv4 address is in a private range
+func isPrivateIPv4(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil || ip.To4() == nil {
+		return false
+	}
+
+	// Use the standard library's IsPrivate method (Go 1.17+)
+	return ip.IsPrivate()
 }
