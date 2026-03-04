@@ -8,11 +8,13 @@ import (
 	"github.com/blacksheepaul/prompt_endgame/internal/app"
 	"github.com/blacksheepaul/prompt_endgame/internal/config"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
+	"go.uber.org/zap"
 )
 
 // Container holds all wired dependencies
 type Container struct {
 	Config      *config.Config
+	Logger      *zap.Logger
 	RoomRepo    port.RoomRepository
 	EventSink   port.EventSink
 	LLMProvider port.LLMProvider
@@ -23,7 +25,7 @@ type Container struct {
 }
 
 // Wire creates and wires all dependencies
-func Wire(cfg *config.Config) *Container {
+func Wire(cfg *config.Config, logger *zap.Logger) *Container {
 	// Create adapters
 	roomRepo := inmem.NewRoomRepo()
 	eventSink := inmem.NewEventSink()
@@ -40,6 +42,7 @@ func Wire(cfg *config.Config) *Container {
 		eventSink,
 		roomRepo,
 		sceneryRepo,
+		logger,
 	)
 
 	// Create room service
@@ -48,13 +51,15 @@ func Wire(cfg *config.Config) *Container {
 		eventSink,
 		sceneryRepo,
 		turnRuntime,
+		logger,
 	)
 
 	// Create HTTP server
-	httpServer := http.NewServer(cfg.Server.Addr, roomService, eventSink)
+	httpServer := http.NewServer(cfg.Server.Addr, roomService, eventSink, logger)
 
 	return &Container{
 		Config:      cfg,
+		Logger:      logger,
 		RoomRepo:    roomRepo,
 		EventSink:   eventSink,
 		LLMProvider: llmProvider,

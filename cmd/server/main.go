@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,44 +10,55 @@ import (
 
 	"github.com/blacksheepaul/prompt_endgame/internal/config"
 	"github.com/blacksheepaul/prompt_endgame/internal/wiring"
+	"go.uber.org/zap"
 )
 
 func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Initialize logger
+	logger, err := wiring.NewLogger(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
 	// Wire dependencies
-	container := wiring.Wire(cfg)
+	container := wiring.Wire(cfg, logger)
 
 	// Start server in goroutine
 	go func() {
 		if err := container.HTTPServer.Start(); err != nil {
-			log.Printf("Server error: %v\n", err)
+			logger.Error("Server error", zap.Error(err))
 		}
 	}()
 
-	fmt.Printf("Server running at http://localhost%s\n", cfg.Server.Addr)
-	fmt.Println("Endpoints:")
-	fmt.Println("  POST   /rooms            - Create a room")
-	fmt.Println("  POST   /rooms/:id/answer - Submit an answer")
-	fmt.Println("  GET    /rooms/:id/events - SSE event stream")
-	fmt.Println("  POST   /rooms/:id/cancel - Cancel current turn")
-	fmt.Println("  GET    /supervisor/rooms - List rooms (supervisor)")
-	fmt.Println("  GET    /health           - Health check")
-	fmt.Println("  GET    /metrics          - Prometheus metrisc")
+	logger.Info("Server running",
+		zap.String("url", "http://localhost"+cfg.Server.Addr),
+	)
+	logger.Info("Endpoints",
+		zap.String("create_room", "POST   /rooms"),
+		zap.String("submit_answer", "POST   /rooms/:id/answer"),
+		zap.String("stream_events", "GET    /rooms/:id/events"),
+		zap.String("cancel_turn", "POST   /rooms/:id/cancel"),
+		zap.String("list_rooms", "GET    /supervisor/rooms"),
+		zap.String("health_check", "GET    /health"),
+		zap.String("metrics", "GET    /metrics"),
+	)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	fmt.Println("\nShutting down server...")
+	logger.Info("Shutting down server")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := container.HTTPServer.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
-	fmt.Println("Server exited")
+	logger.Info("Server exited")
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap/zapcore"
 )
 
 // Config holds application configuration
@@ -13,6 +14,7 @@ type Config struct {
 	Server   ServerConfig
 	Provider ProviderConfig
 	Scenery  SceneryConfig
+	Log      LogConfig
 }
 
 // ServerConfig holds HTTP server settings
@@ -31,6 +33,11 @@ type ProviderConfig struct {
 // SceneryConfig holds scenery repository settings
 type SceneryConfig struct {
 	BasePath string
+}
+
+// LogConfig holds logging configuration
+type LogConfig struct {
+	Level zapcore.Level
 }
 
 // Load loads configuration from environment variables with defaults
@@ -55,6 +62,9 @@ func Load() *Config {
 		Scenery: SceneryConfig{
 			BasePath: getEnv("SCENERY_PATH", "./sceneries"),
 		},
+		Log: LogConfig{
+			Level: parseLogLevel(getEnv("LOG_LEVEL", "info")),
+		},
 	}
 }
 
@@ -75,4 +85,19 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		return duration
 	}
 	return defaultValue
+}
+
+func parseLogLevel(level string) zapcore.Level {
+	switch level {
+	case "debug":
+		return zapcore.DebugLevel
+	case "info":
+		return zapcore.InfoLevel
+	case "warn":
+		return zapcore.WarnLevel
+	case "error":
+		return zapcore.ErrorLevel
+	default:
+		return zapcore.InfoLevel
+	}
 }

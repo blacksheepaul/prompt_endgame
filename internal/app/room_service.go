@@ -6,6 +6,7 @@ import (
 
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
+	"go.uber.org/zap"
 )
 
 // RoomService handles room-related business logic
@@ -14,6 +15,7 @@ type RoomService struct {
 	eventSink   port.EventSink
 	sceneryRepo port.SceneryRepository
 	turnRuntime *TurnRuntime
+	logger      *zap.Logger
 }
 
 // NewRoomService creates a new room service
@@ -22,12 +24,14 @@ func NewRoomService(
 	eventSink port.EventSink,
 	sceneryRepo port.SceneryRepository,
 	turnRuntime *TurnRuntime,
+	logger *zap.Logger,
 ) *RoomService {
 	return &RoomService{
 		roomRepo:    roomRepo,
 		eventSink:   eventSink,
 		sceneryRepo: sceneryRepo,
 		turnRuntime: turnRuntime,
+		logger:      logger,
 	}
 }
 

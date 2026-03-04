@@ -11,6 +11,7 @@ import (
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/store/inmem"
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
+	"go.uber.org/zap"
 )
 
 type testEnv struct {
@@ -23,10 +24,11 @@ func setupTestService(tokenDelay time.Duration) testEnv {
 	eventSink := inmem.NewEventSink()
 	llmProvider := mock.NewProvider(tokenDelay)
 	sceneryRepo := fs.NewRepo("./testdata", true)
+	logger := zap.NewNop()
 
-	turnRuntime := NewTurnRuntime(llmProvider, eventSink, roomRepo, sceneryRepo)
+	turnRuntime := NewTurnRuntime(llmProvider, eventSink, roomRepo, sceneryRepo, logger)
 	return testEnv{
-		service:   NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime),
+		service:   NewRoomService(roomRepo, eventSink, sceneryRepo, turnRuntime, logger),
 		eventSink: eventSink,
 	}
 }

@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -12,16 +11,18 @@ import (
 	"github.com/blacksheepaul/prompt_endgame/internal/app"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 )
 
 // Server represents the HTTP server
 type Server struct {
 	server   *http.Server
 	handlers *Handlers
+	logger   *zap.Logger
 }
 
 // NewServer creates a new HTTP server
-func NewServer(addr string, roomService *app.RoomService, eventSink port.EventSink) *Server {
+func NewServer(addr string, roomService *app.RoomService, eventSink port.EventSink, logger *zap.Logger) *Server {
 	handlers := NewHandlers(roomService, eventSink)
 
 	mux := http.NewServeMux()
@@ -101,12 +102,13 @@ func NewServer(addr string, roomService *app.RoomService, eventSink port.EventSi
 			IdleTimeout:  60 * time.Second,
 		},
 		handlers: handlers,
+		logger:   logger,
 	}
 }
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	fmt.Printf("Server starting on %s\n", s.server.Addr)
+	s.logger.Info("Server starting", zap.String("addr", s.server.Addr))
 	return s.server.ListenAndServe()
 }
 
