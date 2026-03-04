@@ -9,6 +9,7 @@ import (
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/metrics"
 	"github.com/blacksheepaul/prompt_endgame/internal/domain"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
+	"go.uber.org/zap"
 )
 
 // TurnRuntime orchestrates turn execution and agent streaming
@@ -17,6 +18,7 @@ type TurnRuntime struct {
 	eventSink   port.EventSink
 	roomRepo    port.RoomRepository
 	sceneryRepo port.SceneryRepository
+	logger      *zap.Logger
 
 	mu      sync.RWMutex
 	cancels map[domain.RoomID]context.CancelFunc
@@ -28,12 +30,14 @@ func NewTurnRuntime(
 	eventSink port.EventSink,
 	roomRepo port.RoomRepository,
 	sceneryRepo port.SceneryRepository,
+	logger *zap.Logger,
 ) *TurnRuntime {
 	return &TurnRuntime{
 		llmProvider: llmProvider,
 		eventSink:   eventSink,
 		roomRepo:    roomRepo,
 		sceneryRepo: sceneryRepo,
+		logger:      logger,
 		cancels:     make(map[domain.RoomID]context.CancelFunc),
 	}
 }
@@ -41,10 +45,19 @@ func NewTurnRuntime(
 // ExecuteTurn runs the turn execution for all agents
 func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, turn *domain.Turn) {
 	startTime := time.Now()
+	r.logger.Info("Starting turn",
+		zap.String("turn_id", string(turn.ID)),
+		zap.String("room_id", string(roomID)),
+	)
 	metrics.ActiveTurns.Inc()
 	metrics.Goroutines.Set(float64(runtime.NumGoroutine()))
 	defer func() {
 		metrics.ActiveTurns.Dec()
+		r.logger.Info("Completed turn",
+			zap.String("turn_id", string(turn.ID)),
+			zap.String("room_id", string(roomID)),
+			zap.Duration("duration", time.Since(startTime)),
+		)
 		metrics.Goroutines.Set(float64(runtime.NumGoroutine()))
 	}()
 
@@ -96,6 +109,10 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 		return
 	}
 
+	r.logger.Info("Found agents in scenery",
+		zap.Int("agent_count", len(scenery.Agents)),
+	)
+
 	// Execute for each agent sequentially (can be parallelized later)
 	for _, agent := range scenery.Agents {
 		select {
@@ -104,7 +121,15 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 		default:
 		}
 
-		r.streamAgent(ctx, roomID, turn, agent)
+		r.logger.Info("Streaming agent",
+			zap.String("agent_id", agent.ID),
+			zap.String("room_id", string(roomID)),
+		)
+		r.streamAgent(ctx, roomID, turn, agent, startTime)
+		r.logger.Info("Finished agent",
+			zap.String("agent_id", agent.ID),
+			zap.String("room_id", string(roomID)),
+		)
 	}
 
 	// avoid sending completion event if context was cancelled
@@ -118,18 +143,37 @@ func (r *TurnRuntime) ExecuteTurn(ctx context.Context, roomID domain.RoomID, tur
 	r.completeTurn(ctx, roomID, turn)
 }
 
-func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, turn *domain.Turn, agent port.Agent) {
+func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, turn *domain.Turn, agent port.Agent, turnStartTime time.Time) {
 	prompt := turn.UserInput // simplified; could include history
+	r.logger.Info("Starting stream for agent",
+		zap.String("agent_id", agent.ID),
+		zap.String("prompt", prompt),
+	)
 
 	tokenCh := r.llmProvider.StreamCompletion(ctx, agent.ID, prompt)
 
 	var content string
+	tokenCount := 0
+	var firstTokenTime time.Time
+	streamStartTime := time.Now()
+
 	for {
 		select {
 		case <-ctx.Done():
+			r.logger.Info("Context cancelled for agent",
+				zap.String("agent_id", agent.ID),
+				zap.Int("token_count", tokenCount),
+			)
 			return
 		case token, ok := <-tokenCh:
 			if !ok {
+				// Record tokens/s on completion
+				if tokenCount > 0 {
+					streamDuration := time.Since(streamStartTime).Seconds()
+					if streamDuration > 0 {
+						metrics.TokensPerSecond.Observe(float64(tokenCount) / streamDuration)
+					}
+				}
 				return
 			}
 			if token.Error != nil {
@@ -138,10 +182,25 @@ func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, tur
 			}
 
 			if token.Done {
+				// Record tokens/s on completion
+				if tokenCount > 0 {
+					streamDuration := time.Since(streamStartTime).Seconds()
+					if streamDuration > 0 {
+						metrics.TokensPerSecond.Observe(float64(tokenCount) / streamDuration)
+					}
+				}
 				return
 			}
 
+			// Track first token for TTFT
+			if tokenCount == 0 {
+				firstTokenTime = time.Now()
+				metrics.TimeToFirstToken.Observe(firstTokenTime.Sub(turnStartTime).Seconds())
+			}
+
 			content += token.Token
+			tokenCount++
+			metrics.TotalTokens.Inc()
 
 			// Emit token event
 			event := domain.NewEvent(domain.EventTokenReceived, roomID, turn.ID, domain.TokenPayload{
@@ -151,6 +210,12 @@ func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, tur
 			r.eventSink.Append(ctx, event)
 		}
 	}
+
+	r.logger.Info("Completed agent",
+		zap.String("agent_id", agent.ID),
+		zap.Int("token_count", tokenCount),
+		zap.Duration("duration", time.Since(streamStartTime)),
+	)
 
 	// Store response
 	turn.Responses = append(turn.Responses, domain.Response{
