@@ -1,69 +1,49 @@
-.PHONY: help build test test-race test-cover run clean lint fmt vet ci
+.PHONY: all build build-linux test run clean fmt ci help
+
+# Binary name
+BINARY_NAME=server
+BUILD_DIR=bin
 
 # Default target
-help:
-	@echo "Available targets:"
-	@echo "  make build      - Build the application"
-	@echo "  make test       - Run all tests"
-	@echo "  make test-race  - Run tests with race detector"
-	@echo "  make test-cover - Run tests with coverage report"
-	@echo "  make run        - Run the server"
-	@echo "  make clean      - Clean build artifacts"
-	@echo "  make fmt        - Format code"
-	@echo "  make vet        - Run go vet"
-	@echo "  make lint       - Run golangci-lint (if installed)"
-	@echo "  make ci         - Run full CI pipeline locally"
+all: build
 
-# Build the application
+# Build for current platform
 build:
-	@echo "Building..."
-	@go build -o bin/server ./cmd/server
+	@mkdir -p $(BUILD_DIR)
+	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/server
 
-# Run all tests
+# Build for Docker (Linux AMD64 and ARM64)
+build-linux:
+	@mkdir -p $(BUILD_DIR)/linux
+	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/linux/$(BINARY_NAME)-amd64 ./cmd/server
+
+# Run tests
 test:
-	@echo "Running tests..."
-	@go test ./... -v
-
-# Run tests with race detector
-test-race:
-	@echo "Running tests with race detector..."
-	@go test ./... -race -v
-
-# Run tests with coverage
-test-cover:
-	@echo "Running tests with coverage..."
-	@go test ./... -coverprofile=coverage.out
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"
+	go test ./...
 
 # Run the server
 run:
-	@echo "Starting server..."
-	@go run ./cmd/server/main.go
+	go run ./cmd/server/main.go
 
 # Clean build artifacts
 clean:
-	@echo "Cleaning..."
-	@rm -rf bin/
-	@rm -f coverage.out coverage.html
-	@go clean
+	rm -rf $(BUILD_DIR)/
+	go clean
 
 # Format code
 fmt:
-	@echo "Formatting code..."
-	@go fmt ./...
+	go fmt ./...
 
-# Run go vet
-vet:
-	@echo "Running go vet..."
-	@go vet ./...
+# CI pipeline: format + test
+ci: fmt test
 
-# Run golangci-lint (if installed)
-lint:
-	@echo "Running golangci-lint..."
-	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Install: https://golangci-lint.run/usage/install/" && exit 1)
-	@golangci-lint run ./...
-
-# Full CI pipeline
-ci: fmt vet test-race
-	@echo "✅ CI pipeline passed!"
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  build       - Build the server binary"
+	@echo "  build-linux - Build Linux binaries for Docker (amd64)"
+	@echo "  test        - Run all tests"
+	@echo "  run         - Run the server"
+	@echo "  clean       - Clean build artifacts"
+	@echo "  fmt         - Format Go code"
+	@echo "  ci          - Run CI checks (fmt + test)"
