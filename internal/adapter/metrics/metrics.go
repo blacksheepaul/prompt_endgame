@@ -50,4 +50,18 @@ var (
 		Name: "prompt_endgame_tokens_total",
 		Help: "Total number of tokens generated",
 	})
+
+	// ProviderErrors tracks errors from LLM providers by error type
+	// Labels: type (timeout, connection_refused, 429, parse_error, cancelled)
+	ProviderErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "prompt_endgame_provider_errors_total",
+		Help: "Total number of provider errors by type",
+	}, []string{"type"})
+
+	// QueueWaitTime tracks the time spent waiting in queue before processing
+	QueueWaitTime = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "prompt_endgame_queue_wait_seconds",
+		Help:    "Time spent waiting in queue before processing",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	})
 )

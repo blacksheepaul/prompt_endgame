@@ -26,7 +26,21 @@ type ServerConfig struct {
 
 // ProviderConfig holds LLM provider settings
 type ProviderConfig struct {
-	Type       string // "mock" or "openai" etc
+	Type       string        // "mock" or "openai" etc
+	TokenDelay time.Duration // Legacy field, will be deprecated
+	OpenAI     OpenAIConfig
+	Mock       MockConfig
+}
+
+// OpenAIConfig holds OpenAI provider specific settings
+type OpenAIConfig struct {
+	Endpoint string
+	Model    string
+	APIKey   string
+}
+
+// MockConfig holds mock provider specific settings
+type MockConfig struct {
 	TokenDelay time.Duration
 }
 
@@ -58,6 +72,14 @@ func Load() *Config {
 		Provider: ProviderConfig{
 			Type:       getEnv("PROVIDER_TYPE", "mock"),
 			TokenDelay: getDurationEnv("PROVIDER_TOKEN_DELAY", 50*time.Millisecond),
+			OpenAI: OpenAIConfig{
+				Endpoint: getEnv("PROVIDER_ENDPOINT", ""),
+				Model:    getEnv("PROVIDER_MODEL", ""),
+				APIKey:   getEnv("PROVIDER_API_KEY", ""),
+			},
+			Mock: MockConfig{
+				TokenDelay: getDurationEnv("PROVIDER_TOKEN_DELAY", 50*time.Millisecond),
+			},
 		},
 		Scenery: SceneryConfig{
 			BasePath: getEnv("SCENERY_PATH", "./sceneries"),

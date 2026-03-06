@@ -20,6 +20,144 @@ import (
 
 const baseURL = "http://localhost:10180"
 
+// FakeLLMScenario defines configuration parameters for a Fake LLM test scenario
+type FakeLLMScenario struct {
+	Name                 string
+	MaxConcurrent        int
+	FixedDelayMs         int
+	JitterMs             int
+	SlowdownQPSThreshold int
+	SlowdownFactor       float64
+}
+
+// predefinedScenarios maps scenario names to their configurations
+var predefinedScenarios = map[string]FakeLLMScenario{
+	"fast": {
+		Name:          "fast",
+		MaxConcurrent: 200,
+		FixedDelayMs:  10,
+		JitterMs:      5,
+	},
+	"slow": {
+		Name:          "slow",
+		MaxConcurrent: 10,
+		FixedDelayMs:  500,
+		JitterMs:      100,
+	},
+	"backpressure": {
+		Name:                 "backpressure",
+		MaxConcurrent:        5,
+		FixedDelayMs:         100,
+		JitterMs:             50,
+		SlowdownQPSThreshold: 50,
+		SlowdownFactor:       0.5,
+	},
+}
+
+// TestResults holds aggregated load test results
+type TestResults struct {
+	TotalTurns   int
+	SuccessTurns int
+	FailedTurns  int
+	TotalTokens  int64
+	Throughput   float64 // turns/sec
+	AvgLatency   time.Duration
+	P50Latency   time.Duration
+	P95Latency   time.Duration
+	P99Latency   time.Duration
+}
+
+// MarkdownReport holds all data needed to generate a test report
+type MarkdownReport struct {
+	Title         string
+	Timestamp     time.Time
+	Scenario      string
+	Concurrency   int
+	Duration      time.Duration
+	FakeLLMConfig FakeLLMScenario
+	Results       TestResults
+	OutputDir     string
+}
+
+// Generate produces a Markdown-formatted report string with actual field values
+func (r MarkdownReport) Generate() string {
+	successRate := 0.0
+	failRate := 0.0
+	if r.Results.TotalTurns > 0 {
+		successRate = float64(r.Results.SuccessTurns) / float64(r.Results.TotalTurns) * 100
+		failRate = float64(r.Results.FailedTurns) / float64(r.Results.TotalTurns) * 100
+	}
+
+	return fmt.Sprintf(`# %s
+
+Generated: %s
+
+## Test Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Scenario | %s |
+| Concurrency | %d rooms |
+| Duration | %s |
+
+## Fake LLM Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Max Concurrent | %d |
+| Fixed Delay | %dms |
+| Jitter | %dms |
+| Slowdown QPS Threshold | %d |
+| Slowdown Factor | %.2f |
+
+## Results Summary
+
+| Metric | Value |
+|--------|-------|
+| Total Turns | %d |
+| Success | %d (%.1f%%) |
+| Failed | %d (%.1f%%) |
+| Total Tokens | %d |
+| Throughput | %.2f turns/sec |
+
+## Latency Distribution
+
+| Percentile | Latency |
+|------------|---------|
+| P50 | %s |
+| P95 | %s |
+| P99 | %s |
+
+## Key Metrics
+
+- Avg Latency: %s
+- Throughput: %.2f turns/sec
+- Total Tokens: %d
+`,
+		r.Title,
+		r.Timestamp.Format("2006-01-02 15:04:05"),
+		r.Scenario,
+		r.Concurrency,
+		r.Duration.String(),
+		r.FakeLLMConfig.MaxConcurrent,
+		r.FakeLLMConfig.FixedDelayMs,
+		r.FakeLLMConfig.JitterMs,
+		r.FakeLLMConfig.SlowdownQPSThreshold,
+		r.FakeLLMConfig.SlowdownFactor,
+		r.Results.TotalTurns,
+		r.Results.SuccessTurns, successRate,
+		r.Results.FailedTurns, failRate,
+		r.Results.TotalTokens,
+		r.Results.Throughput,
+		r.Results.P50Latency.Round(time.Millisecond).String(),
+		r.Results.P95Latency.Round(time.Millisecond).String(),
+		r.Results.P99Latency.Round(time.Millisecond).String(),
+		r.Results.AvgLatency.Round(time.Millisecond).String(),
+		r.Results.Throughput,
+		r.Results.TotalTokens,
+	)
+}
+
 // MetricsSnapshot captures Prometheus metrics at a point in time
 type MetricsSnapshot struct {
 	Timestamp       time.Time
