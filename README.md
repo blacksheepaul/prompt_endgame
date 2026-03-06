@@ -57,8 +57,9 @@ TODO: 此处应有一张图片或 高清 gif
 
 #### Stage B：可观测性与 Baseline 压测
 
-- [ ] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
+- [x] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
 - [ ] 分级压测建立 Baseline：10/50/100 并发测试，收集内存、延迟、goroutine 曲线
+      暂时搁置，完成provider抽象、接入fakellm后再继续。
 - [ ] 关键指标输出：p95/p99、TTFT、tokens/s、pprof 截图
 
 #### Stage C：高并发与流式 I/O（基于 Baseline 优化）
