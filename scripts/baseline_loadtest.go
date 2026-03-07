@@ -158,6 +158,77 @@ Generated: %s
 	)
 }
 
+// WriteFile writes the report to a .md file inside outputDir and returns the file path.
+func (r MarkdownReport) WriteFile(outputDir string) (string, error) {
+	filename := fmt.Sprintf("report_%s_%s.md",
+		r.Scenario,
+		r.Timestamp.Format("20060102_150405"),
+	)
+	path := filepath.Join(outputDir, filename)
+	if err := os.WriteFile(path, []byte(r.Generate()), 0644); err != nil {
+		return "", fmt.Errorf("write report: %w", err)
+	}
+	return path, nil
+}
+
+// lookupScenario returns the FakeLLMScenario for the given name, or an error if unknown.
+func lookupScenario(name string) (FakeLLMScenario, error) {
+	s, ok := predefinedScenarios[name]
+	if !ok {
+		return FakeLLMScenario{}, fmt.Errorf("unknown scenario %q; available: fast, slow, backpressure", name)
+	}
+	return s, nil
+}
+
+// fakeLLMConfigPayload returns the JSON body for PATCH /admin/config.
+func fakeLLMConfigPayload(s FakeLLMScenario) []byte {
+	type payload struct {
+		MaxConcurrent        int     `json:"max_concurrent"`
+		FixedDelayMs         int     `json:"fixed_delay_ms"`
+		JitterMs             int     `json:"jitter_ms"`
+		SlowdownQPSThreshold int     `json:"slowdown_qps_threshold"`
+		SlowdownFactor       float64 `json:"slowdown_factor"`
+	}
+	b, _ := json.Marshal(payload{
+		MaxConcurrent:        s.MaxConcurrent,
+		FixedDelayMs:         s.FixedDelayMs,
+		JitterMs:             s.JitterMs,
+		SlowdownQPSThreshold: s.SlowdownQPSThreshold,
+		SlowdownFactor:       s.SlowdownFactor,
+	})
+	return b
+}
+
+// configureFakeLLM sends the scenario config to the Fake LLM admin API.
+func configureFakeLLM(fakeLLMBase string, s FakeLLMScenario) error {
+	url := fakeLLMBase + "/admin/config"
+	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(fakeLLMConfigPayload(s)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("PATCH %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("PATCH %s: HTTP %d: %s", url, resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+// resetFakeLLM resets the Fake LLM to a permissive default state.
+func resetFakeLLM(fakeLLMBase string) error {
+	return configureFakeLLM(fakeLLMBase, FakeLLMScenario{
+		Name:          "reset",
+		MaxConcurrent: 1000,
+		FixedDelayMs:  0,
+		JitterMs:      0,
+	})
+}
+
 // MetricsSnapshot captures Prometheus metrics at a point in time
 type MetricsSnapshot struct {
 	Timestamp       time.Time
@@ -270,18 +341,48 @@ func (s *Stats) Report(elapsed time.Duration) {
 func main() {
 	concurrency := flag.Int("c", 10, "Number of concurrent rooms")
 	duration := flag.Duration("d", 60*time.Second, "Test duration")
-	outputDir := flag.String("o", "", "Output directory for pprof profiles (default: baseline_<timestamp>)")
+	outputDir := flag.String("o", "", "Output directory for pprof profiles (default: benchmarks/baseline_<ts>_<c>r)")
+	scenarioName := flag.String("scenario", "", "Fake LLM scenario: fast, slow, backpressure (optional)")
+	fakeLLMBase := flag.String("fake-llm", "http://localhost:10181", "Fake LLM base URL")
 	flag.Parse()
 
 	// Setup output directory
-	timestamp := time.Now().Format("20060102_150405")
+	timestamp := time.Now()
 	dir := *outputDir
 	if dir == "" {
-		dir = fmt.Sprintf("benchmarks/baseline_%s_%dr", timestamp, *concurrency)
+		suffix := ""
+		if *scenarioName != "" {
+			suffix = "_" + *scenarioName
+		}
+		dir = fmt.Sprintf("benchmarks/baseline_%s_%dr%s", timestamp.Format("20060102_150405"), *concurrency, suffix)
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		fmt.Printf("Warning: Failed to create output directory: %v\n", err)
 		dir = "."
+	}
+
+	// Resolve scenario
+	var scenario FakeLLMScenario
+	if *scenarioName != "" {
+		s, err := lookupScenario(*scenarioName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		scenario = s
+
+		fmt.Printf("Configuring Fake LLM with scenario %q...\n", *scenarioName)
+		if err := configureFakeLLM(*fakeLLMBase, scenario); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not configure Fake LLM: %v\n", err)
+		} else {
+			fmt.Println("Fake LLM configured.")
+		}
+		defer func() {
+			fmt.Println("Resetting Fake LLM configuration...")
+			if err := resetFakeLLM(*fakeLLMBase); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not reset Fake LLM: %v\n", err)
+			}
+		}()
 	}
 
 	test := &LoadTest{
@@ -297,6 +398,12 @@ func main() {
 	fmt.Printf("=== Prompt Endgame Baseline Load Test ===\n")
 	fmt.Printf("Concurrency: %d rooms\n", test.concurrency)
 	fmt.Printf("Duration: %v\n", test.duration)
+	fmt.Printf("Scenario: %s\n", func() string {
+		if *scenarioName == "" {
+			return "(none)"
+		}
+		return *scenarioName
+	}())
 	fmt.Printf("Output Directory: %s\n", test.outputDir)
 	fmt.Printf("Pattern: Loop turns with 1-10s random interval\n\n")
 
@@ -359,6 +466,64 @@ func main() {
 	// Final report
 	test.stats.Report(test.duration)
 	test.reportMetrics()
+
+	// Write Markdown report
+	s := test.stats
+	s.mu.Lock()
+	latencies := make([]time.Duration, len(s.latencies))
+	copy(latencies, s.latencies)
+	totalTurns := s.totalTurns
+	successTurns := s.successTurns
+	failedTurns := s.failedTurns
+	totalTokens := s.totalTokens
+	s.mu.Unlock()
+
+	var p50, p95, p99, avg time.Duration
+	if len(latencies) > 0 {
+		// sort
+		for i := 0; i < len(latencies); i++ {
+			for j := i + 1; j < len(latencies); j++ {
+				if latencies[i] > latencies[j] {
+					latencies[i], latencies[j] = latencies[j], latencies[i]
+				}
+			}
+		}
+		var sum time.Duration
+		for _, l := range latencies {
+			sum += l
+		}
+		avg = sum / time.Duration(len(latencies))
+		p50 = latencies[len(latencies)*50/100]
+		p95 = latencies[len(latencies)*95/100]
+		p99 = latencies[len(latencies)*99/100]
+	}
+
+	mdReport := MarkdownReport{
+		Title:         "Stage B Baseline Load Test",
+		Timestamp:     timestamp,
+		Scenario:      *scenarioName,
+		Concurrency:   *concurrency,
+		Duration:      *duration,
+		FakeLLMConfig: scenario,
+		OutputDir:     dir,
+		Results: TestResults{
+			TotalTurns:   totalTurns,
+			SuccessTurns: successTurns,
+			FailedTurns:  failedTurns,
+			TotalTokens:  totalTokens,
+			Throughput:   float64(totalTurns) / test.duration.Seconds(),
+			AvgLatency:   avg,
+			P50Latency:   p50,
+			P95Latency:   p95,
+			P99Latency:   p99,
+		},
+	}
+
+	if path, err := mdReport.WriteFile(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not write Markdown report: %v\n", err)
+	} else {
+		fmt.Printf("Markdown report: %s\n", path)
+	}
 
 	// Cleanup
 	fmt.Println("\nCleaning up...")

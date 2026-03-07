@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -149,5 +152,107 @@ func TestMarkdownReport_SuccessRateCalculation(t *testing.T) {
 	}
 	if !strings.Contains(content, "10.0%") {
 		t.Errorf("Generate() should contain fail rate 10.0%%\nGot:\n%s", content)
+	}
+}
+
+func TestLookupScenario_KnownNames(t *testing.T) {
+	for _, name := range []string{"fast", "slow", "backpressure"} {
+		s, err := lookupScenario(name)
+		if err != nil {
+			t.Errorf("lookupScenario(%q) returned unexpected error: %v", name, err)
+		}
+		if s.Name != name {
+			t.Errorf("lookupScenario(%q) Name: got %q, want %q", name, s.Name, name)
+		}
+	}
+}
+
+func TestLookupScenario_UnknownName(t *testing.T) {
+	_, err := lookupScenario("nonexistent")
+	if err == nil {
+		t.Error("lookupScenario(\"nonexistent\") should return an error, got nil")
+	}
+}
+
+func TestFakeLLMConfigPayload_MatchesScenario(t *testing.T) {
+	s := FakeLLMScenario{
+		Name:                 "test",
+		MaxConcurrent:        77,
+		FixedDelayMs:         250,
+		JitterMs:             30,
+		SlowdownQPSThreshold: 40,
+		SlowdownFactor:       0.3,
+	}
+
+	payload := fakeLLMConfigPayload(s)
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		t.Fatalf("fakeLLMConfigPayload() returned invalid JSON: %v", err)
+	}
+
+	checks := map[string]float64{
+		"max_concurrent":         77,
+		"fixed_delay_ms":         250,
+		"jitter_ms":              30,
+		"slowdown_qps_threshold": 40,
+	}
+	for key, want := range checks {
+		got, ok := m[key]
+		if !ok {
+			t.Errorf("payload missing key %q", key)
+			continue
+		}
+		if got.(float64) != want {
+			t.Errorf("payload[%q]: got %v, want %v", key, got, want)
+		}
+	}
+
+	if sf, ok := m["slowdown_factor"]; !ok || sf.(float64) != 0.3 {
+		t.Errorf("payload[\"slowdown_factor\"]: got %v, want 0.3", m["slowdown_factor"])
+	}
+}
+
+func TestMarkdownReport_WriteFile(t *testing.T) {
+	dir := t.TempDir()
+	report := MarkdownReport{
+		Title:       "Write Test",
+		Timestamp:   time.Date(2026, 3, 6, 10, 0, 0, 0, time.UTC),
+		Scenario:    "fast",
+		Concurrency: 10,
+		Duration:    30 * time.Second,
+		Results: TestResults{
+			TotalTurns:   50,
+			SuccessTurns: 50,
+		},
+	}
+
+	outPath, err := report.WriteFile(dir)
+	if err != nil {
+		t.Fatalf("WriteFile() returned error: %v", err)
+	}
+
+	// File must exist
+	if _, statErr := os.Stat(outPath); os.IsNotExist(statErr) {
+		t.Fatalf("WriteFile() file not created at %s", outPath)
+	}
+
+	// File must be inside the output directory
+	if !strings.HasPrefix(outPath, dir) {
+		t.Errorf("WriteFile() path %q not inside dir %q", outPath, dir)
+	}
+
+	// File must have .md extension
+	if filepath.Ext(outPath) != ".md" {
+		t.Errorf("WriteFile() file extension: got %q, want \".md\"", filepath.Ext(outPath))
+	}
+
+	// File content must include the title
+	data, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("could not read written file: %v", readErr)
+	}
+	if !strings.Contains(string(data), "Write Test") {
+		t.Errorf("written file does not contain report title")
 	}
 }
