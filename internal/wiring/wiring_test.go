@@ -16,8 +16,7 @@ func TestWire_MockProvider(t *testing.T) {
 			Addr: ":8080",
 		},
 		Provider: config.ProviderConfig{
-			Type:       "mock",
-			TokenDelay: 100 * time.Millisecond,
+			Type: "mock",
 			Mock: config.MockConfig{
 				TokenDelay: 100 * time.Millisecond,
 			},
@@ -117,8 +116,7 @@ func TestWire_DefaultsToMock(t *testing.T) {
 			Addr: ":8080",
 		},
 		Provider: config.ProviderConfig{
-			Type:       "", // Empty type
-			TokenDelay: 50 * time.Millisecond,
+			Type: "", // Empty type
 		},
 		Scenery: config.SceneryConfig{
 			BasePath: "./sceneries",
@@ -148,8 +146,7 @@ func TestWire_ContainerDependencies(t *testing.T) {
 			Addr: ":8080",
 		},
 		Provider: config.ProviderConfig{
-			Type:       "mock",
-			TokenDelay: 50 * time.Millisecond,
+			Type: "mock",
 		},
 		Scenery: config.SceneryConfig{
 			BasePath: "./sceneries",

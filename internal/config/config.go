@@ -26,10 +26,9 @@ type ServerConfig struct {
 
 // ProviderConfig holds LLM provider settings
 type ProviderConfig struct {
-	Type       string        // "mock" or "openai" etc
-	TokenDelay time.Duration // Legacy field, will be deprecated
-	OpenAI     OpenAIConfig
-	Mock       MockConfig
+	Type   string // "mock" or "openai" etc
+	OpenAI OpenAIConfig
+	Mock   MockConfig
 }
 
 // OpenAIConfig holds OpenAI provider specific settings
@@ -70,8 +69,7 @@ func Load() *Config {
 			WriteTimeout: getDurationEnv("SERVER_WRITE_TIMEOUT", 0), // No timeout for SSE
 		},
 		Provider: ProviderConfig{
-			Type:       getEnv("PROVIDER_TYPE", "mock"),
-			TokenDelay: getDurationEnv("PROVIDER_TOKEN_DELAY", 50*time.Millisecond),
+			Type: getEnv("PROVIDER_TYPE", "mock"),
 			OpenAI: OpenAIConfig{
 				Endpoint: getEnv("PROVIDER_ENDPOINT", ""),
 				Model:    getEnv("PROVIDER_MODEL", ""),
