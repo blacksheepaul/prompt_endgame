@@ -141,7 +141,9 @@ func TestTurnRuntime_ProviderErrors(t *testing.T) {
 
 func TestTurnRuntime_ProviderErrors_Count(t *testing.T) {
 	// TDD: this test must fail until turn_runtime.go calls
-	// metrics.ProviderErrors.WithLabelValues("stream_error").Inc()
+	// metrics.ProviderErrors.WithLabelValues(...).Inc() in streamAgent's error branch.
+	//
+	// Error "timeout" → classifyProviderError → label "timeout"
 	errProvider := &mockErrorProvider{err: errors.New("timeout")}
 	eventSink := &mockEventSink{}
 	roomRepo := &mockRoomRepo{
@@ -167,17 +169,18 @@ func TestTurnRuntime_ProviderErrors_Count(t *testing.T) {
 		State:     domain.TurnStateStreaming,
 	}
 
-	// Use relative assertion to avoid global counter pollution across test runs
-	initialCount := testutil.ToFloat64(metrics.ProviderErrors.WithLabelValues("stream_error"))
+	// Use relative assertion to avoid global counter pollution across test runs.
+	// "timeout" error is classified as label "timeout" by classifyProviderError.
+	initialCount := testutil.ToFloat64(metrics.ProviderErrors.WithLabelValues("timeout"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	runtime.ExecuteTurn(ctx, "test-room-2", turn)
 
-	finalCount := testutil.ToFloat64(metrics.ProviderErrors.WithLabelValues("stream_error"))
+	finalCount := testutil.ToFloat64(metrics.ProviderErrors.WithLabelValues("timeout"))
 	if finalCount <= initialCount {
-		t.Errorf("Expected ProviderErrors{type=stream_error} to increment: before=%.0f, after=%.0f", initialCount, finalCount)
+		t.Errorf("Expected ProviderErrors{type=timeout} to increment: before=%.0f, after=%.0f", initialCount, finalCount)
 	}
 }
 
