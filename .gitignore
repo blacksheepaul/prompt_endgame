@@ -19,3 +19,4 @@ coverage.html
 Thumbs.db
 *.prof
 benchmarks
+docker-compose.yml
