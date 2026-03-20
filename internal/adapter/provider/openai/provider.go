@@ -60,9 +60,6 @@ func (p *Provider) StreamCompletion(ctx context.Context, agentID string, prompt 
 	go func() {
 		defer close(ch)
 
-		startTime := time.Now()
-		firstTokenReceived := false
-
 		// Build request body
 		reqBody := map[string]interface{}{
 			"model":    p.config.Model,
@@ -81,7 +78,7 @@ func (p *Provider) StreamCompletion(ctx context.Context, agentID string, prompt 
 		var resp *http.Response
 		for attempt := 0; attempt < p.config.MaxRetries; attempt++ {
 			// Create request (must be recreated for each retry)
-			req, err := http.NewRequestWithContext(ctx, "POST", p.config.Endpoint+"/chat/completions", bytes.NewReader(jsonBody))
+			req, err := http.NewRequestWithContext(ctx, "POST", p.config.Endpoint, bytes.NewReader(jsonBody))
 			if err != nil {
 				ch <- port.StreamToken{Error: fmt.Errorf("failed to create request: %w", err)}
 				return
@@ -144,7 +141,7 @@ func (p *Provider) StreamCompletion(ctx context.Context, agentID string, prompt 
 
 		// Parse SSE stream
 		scanner := bufio.NewScanner(resp.Body)
-		var partialContent strings.Builder
+		emittedToken := false
 
 		for scanner.Scan() {
 			select {
@@ -190,13 +187,7 @@ func (p *Provider) StreamCompletion(ctx context.Context, agentID string, prompt 
 			if len(streamResp.Choices) > 0 {
 				content := streamResp.Choices[0].Delta.Content
 				if content != "" {
-					// Calculate TTFT on first non-empty token
-					if !firstTokenReceived {
-						firstTokenReceived = true
-						_ = time.Since(startTime) // TTFT calculated but not used directly here
-					}
-
-					partialContent.WriteString(content)
+					emittedToken = true
 					ch <- port.StreamToken{Token: content, Done: false}
 				}
 			}
@@ -204,7 +195,7 @@ func (p *Provider) StreamCompletion(ctx context.Context, agentID string, prompt 
 
 		if err := scanner.Err(); err != nil {
 			// Stream error - return partial result if we have content
-			if partialContent.Len() > 0 {
+			if emittedToken {
 				ch <- port.StreamToken{Done: true}
 				return
 			}
@@ -225,24 +216,11 @@ func isRetryableError(err error) bool {
 		return false
 	}
 
-	errStr := err.Error()
+	errStr := strings.ToLower(err.Error())
 	// Check for common network errors
-	return contains(errStr, "timeout") ||
-		contains(errStr, "connection refused") ||
-		contains(errStr, "no such host") ||
-		contains(errStr, "temporary") ||
-		contains(errStr, "EOF")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsAt(s, substr, 0))
-}
-
-func containsAt(s, substr string, start int) bool {
-	for i := start; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "temporary") ||
+		strings.Contains(errStr, "eof")
 }
