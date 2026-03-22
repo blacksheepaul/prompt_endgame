@@ -1,19 +1,22 @@
-version: '3.8'
-
 services:
-  app:
+  endgame:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: prompt_endgame
     ports:
       - "10180:8080"
+    env_file:
+      - .env
     environment:
       - SERVER_ADDR=:8080
       - LOG_LEVEL=info
     restart: unless-stopped
+    networks:
+      - monitoring
+      - llm_fakellm-net
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:10180/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -26,3 +29,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
+
+networks:
+  monitoring:
+    external: true
+  llm_fakellm-net:
+    external: true

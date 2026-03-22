@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,78 +151,68 @@ func (r *TurnRuntime) streamAgent(ctx context.Context, roomID domain.RoomID, tur
 		zap.String("prompt", prompt),
 	)
 
-	tokenCh := r.llmProvider.StreamCompletion(ctx, agent.ID, prompt)
-
 	var content string
 	tokenCount := 0
 	var firstTokenTime time.Time
 	streamStartTime := time.Now()
 
-	for {
-		select {
-		case <-ctx.Done():
+	// Record metrics and store response when streaming completes
+	defer func() {
+		if tokenCount > 0 {
+			streamDuration := time.Since(streamStartTime).Seconds()
+			if streamDuration > 0 {
+				metrics.TokensPerSecond.Observe(float64(tokenCount) / streamDuration)
+			}
+		}
+
+		r.logger.Info("Completed agent",
+			zap.String("agent_id", agent.ID),
+			zap.Int("token_count", tokenCount),
+			zap.Duration("duration", time.Since(streamStartTime)),
+		)
+
+		turn.Responses = append(turn.Responses, domain.Response{
+			AgentID: agent.ID,
+			Content: content,
+		})
+	}()
+
+	for token := range r.llmProvider.StreamCompletion(ctx, agent.ID, prompt) {
+		if ctx.Err() != nil {
 			r.logger.Info("Context cancelled for agent",
 				zap.String("agent_id", agent.ID),
 				zap.Int("token_count", tokenCount),
 			)
 			return
-		case token, ok := <-tokenCh:
-			if !ok {
-				// Record tokens/s on completion
-				if tokenCount > 0 {
-					streamDuration := time.Since(streamStartTime).Seconds()
-					if streamDuration > 0 {
-						metrics.TokensPerSecond.Observe(float64(tokenCount) / streamDuration)
-					}
-				}
-				return
-			}
-			if token.Error != nil {
-				r.emitError(ctx, roomID, turn.ID, "stream_error", token.Error.Error())
-				return
-			}
-
-			if token.Done {
-				// Record tokens/s on completion
-				if tokenCount > 0 {
-					streamDuration := time.Since(streamStartTime).Seconds()
-					if streamDuration > 0 {
-						metrics.TokensPerSecond.Observe(float64(tokenCount) / streamDuration)
-					}
-				}
-				return
-			}
-
-			// Track first token for TTFT
-			if tokenCount == 0 {
-				firstTokenTime = time.Now()
-				metrics.TimeToFirstToken.Observe(firstTokenTime.Sub(turnStartTime).Seconds())
-			}
-
-			content += token.Token
-			tokenCount++
-			metrics.TotalTokens.Inc()
-
-			// Emit token event
-			event := domain.NewEvent(domain.EventTokenReceived, roomID, turn.ID, domain.TokenPayload{
-				AgentID: agent.ID,
-				Token:   token.Token,
-			})
-			r.eventSink.Append(ctx, event)
 		}
+
+		if token.Error != nil {
+			metrics.ProviderErrors.WithLabelValues(classifyProviderError(token.Error)).Inc()
+			r.emitError(ctx, roomID, turn.ID, "stream_error", token.Error.Error())
+			return
+		}
+
+		if token.Done {
+			return
+		}
+
+		// Track first token for TTFT
+		if tokenCount == 0 {
+			firstTokenTime = time.Now()
+			metrics.TimeToFirstToken.Observe(firstTokenTime.Sub(turnStartTime).Seconds())
+		}
+
+		content += token.Token
+		tokenCount++
+		metrics.TotalTokens.Inc()
+
+		// Emit token event
+		event := domain.NewEvent(domain.EventTokenReceived, roomID, turn.ID, domain.TokenPayload{
+			AgentID: agent.ID,
+			Token:   token.Token,
+		})
+		r.eventSink.Append(ctx, event)
 	}
-
-	r.logger.Info("Completed agent",
-		zap.String("agent_id", agent.ID),
-		zap.Int("token_count", tokenCount),
-		zap.Duration("duration", time.Since(streamStartTime)),
-	)
-
-	// Store response
-	turn.Responses = append(turn.Responses, domain.Response{
-		AgentID: agent.ID,
-		Content: content,
-	})
 }
 
 func (r *TurnRuntime) completeTurn(ctx context.Context, roomID domain.RoomID, turn *domain.Turn) {
@@ -248,4 +239,41 @@ func (r *TurnRuntime) Cancel(roomID domain.RoomID) {
 	if ok {
 		cancel()
 	}
+}
+
+// classifyProviderError maps a provider error to a canonical label used in ProviderErrors metric.
+// Labels: timeout, connection_refused, 429, parse_error, cancelled, stream_error
+func classifyProviderError(err error) string {
+	if err == nil {
+		return "stream_error"
+	}
+	// context.Canceled / context.DeadlineExceeded
+	if err == context.Canceled || err == context.DeadlineExceeded {
+		return "cancelled"
+	}
+	msg := err.Error()
+	switch {
+	case containsAny(msg, "timeout", "deadline exceeded", "context deadline"):
+		return "timeout"
+	case containsAny(msg, "connection refused", "no such host", "connection reset"):
+		return "connection_refused"
+	case containsAny(msg, "429", "too many requests"):
+		return "429"
+	case containsAny(msg, "parse", "unmarshal", "json"):
+		return "parse_error"
+	case containsAny(msg, "context canceled", "context cancelled"):
+		return "cancelled"
+	default:
+		return "stream_error"
+	}
+}
+
+func containsAny(s string, subs ...string) bool {
+	lower := strings.ToLower(s)
+	for _, sub := range subs {
+		if strings.Contains(lower, strings.ToLower(sub)) {
+			return true
+		}
+	}
+	return false
 }

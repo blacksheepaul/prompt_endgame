@@ -21,9 +21,9 @@ build-linux:
 test:
 	go test ./...
 
-# Run the server
-run:
-	go run ./cmd/server/main.go
+run: build-linux
+	docker compose down
+	docker compose up -d --build
 
 # Clean build artifacts
 clean:

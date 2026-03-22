@@ -1,40 +1,30 @@
-该项目的初衷是为我在 2026Q1 的求职进程中添加 "AI gateway" 的选项可能性，它将会是一个“LLM 网关项目“，包含请求 → 排队 → 合并 → streaming → 限流 → 熔断这些游戏 LLM 网关会需要的场景。
+又一个“LLM 网关“，包含请求 → 排队 → 合并 → streaming → 限流 → 熔断这些 LLM 网关会需要的能力。
 
-> 已入职，勿念
-
-挖掘 AI 的使用场景并且盈利不是我的强项，但如果不考虑盈利，我认为可以玩的点还挺多的。
-
-敬请见证。
-
----
-
-#### 技术设计原则：
-
-- 使用 SSE 向客户端传输 token 流
-- 使用 WS 作为控制面（取消/改参/心跳/查询状态）
 - 可拔插的 LLM Provider（vLLM、外部 API、Mock）
 - 使用 Grafana+Prometheus+Loki+OpenTelemetry 支撑可观测性，所有关键行为都可观测：排队、熔断、限流、首 token、tokens/s
 
-#### 典型场景
-
-和多个 AI NPC 进行交流，类似群面，但是多个面试官拷打同一个面试者
-
-> 你是面试的 candidate，多个 interview agent 会针对你简历上的内容（其实是我简历上的内容）进行轮番拷打，每个 agent 都有各自的 persona
-
-#### 用户故事
-
-- 断线重连期间的事件生产与回放（已补充见 `docs/user_story.md`）
+---
 
 #### 前端（for 测试）
 
 https://github.com/blacksheepaul/prompt_endgame_fe
 
-#### 核心玩法设计
+##### 典型场景
+
+和多个 AI NPC 进行交流，类似群面，但是多个面试官拷打同一个面试者(已经不在这个context了...)
+
+> 你是面试的 candidate，多个 agent 会针对你简历上的内容（其实是我简历上的内容）进行轮番拷打，每个 agent 都有各自的 persona
+
+##### 用户故事
+
+- 断线重连期间的事件生产与回放（已补充见 `docs/user_story.md`）
+
+##### 核心玩法设计
 
 类似象棋残局，你会面对一个固定的上下文，在此基础上有两种玩法模式：
 
 1. 你需要存活尽可能多的对话轮次（从深度拷打中活下来）
-2. 你需要在最少轮次内获得最高认可度（通过你的 SOTA 让 agent 折服于你的艺术！）
+2. 你需要在最少轮次内获得最高认可度
 
 ##### for example
 
@@ -57,9 +47,29 @@ TODO: 此处应有一张图片或 高清 gif
 
 #### Stage B：可观测性与 Baseline 压测
 
-- [ ] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
+- [x] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
 - [ ] 分级压测建立 Baseline：10/50/100 并发测试，收集内存、延迟、goroutine 曲线
 - [ ] 关键指标输出：p95/p99、TTFT、tokens/s、pprof 截图
+
+##### Baseline 压测执行（profile 驱动）
+
+- profile 放在 `benchmarks/profiles/stageb_v1/`
+- 压测脚本只读取 profile，并校验 mockllm `/admin/config` 与 profile 的 `expected_config` 一致
+- 不再由压测脚本动态 PATCH mockllm 配置
+
+执行方式：
+
+```bash
+# 单个 profile
+go run ./scripts/baseline_loadtest.go \
+  --base-url http://localhost:10180 \
+  --profile benchmarks/profiles/stageb_v1/50_fast.json
+
+# 跑 Stage B baseline 矩阵
+./scripts/run_stage_b.sh
+```
+
+profile schema 与校验规则见：`docs/baseline_profile.md`
 
 #### Stage C：高并发与流式 I/O（基于 Baseline 优化）
 
@@ -77,10 +87,12 @@ TODO: 此处应有一张图片或 高清 gif
 
 #### Stage E：调度与 Provider 体系
 
-- [ ] Provider 抽象：mock + external API + vLLM 预留
+- [x] Provider 抽象：mock + external API + vLLM 预留
+- [ ] Multi-Provider
 - [ ] 路由策略：local-prefer / cost-aware / quality-aware
 - [ ] 会话策略：sticky session + provider 选择可追踪
 - [ ] 熔断与 failover：按 provider 维度
+- [ ] 流量治理: 限流(全局/分层)
 
 #### Stage F：工程质量
 

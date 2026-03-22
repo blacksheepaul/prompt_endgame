@@ -1,0 +1,32 @@
+{
+  "schema_version": "stageb.profile.v1",
+  "baseline": true,
+  "mockllm": {
+    "version": "fakellm-local-env-20260321",
+    "deployment": "local",
+    "container": "none",
+    "admin_base_url": "http://localhost:10181",
+    "expected_config": {
+      "max_concurrent": 100,
+      "max_queue_depth": 1000,
+      "queue_timeout_sec": 30.0,
+      "tokens_per_second": 110.0,
+      "first_token_delay_ms": 1200,
+      "fixed_delay_ms": 0,
+      "jitter_ms": 7,
+      "tps_variance": 0.15,
+      "load_curve_center": 0.6,
+      "load_curve_steepness": 5.0,
+      "min_efficiency": 0.6,
+      "queue_penalty_enabled": false,
+      "queue_penalty_factor": 0.5
+    }
+  },
+  "profile_id": "stageb_v1_10_fast",
+  "description": "Stage B baseline profile: 10 concurrency",
+  "workload": {
+    "concurrency": 10,
+    "duration_sec": 300,
+    "warmup_sec": 60
+  }
+}

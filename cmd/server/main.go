@@ -24,6 +24,13 @@ func main() {
 	}
 	defer logger.Sync()
 
+	// Log provider configuration
+	logger.Info("Provider configuration",
+		zap.String("type", cfg.Provider.Type),
+		zap.String("endpoint", cfg.Provider.OpenAI.Endpoint),
+		zap.String("model", cfg.Provider.OpenAI.Model),
+	)
+
 	// Wire dependencies
 	container := wiring.Wire(cfg, logger)
 
