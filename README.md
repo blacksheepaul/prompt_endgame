@@ -49,8 +49,27 @@ TODO: 此处应有一张图片或 高清 gif
 
 - [x] 最小可观测性：埋点（active turns、goroutine 数、处理延迟）、暴露 `/metrics`
 - [ ] 分级压测建立 Baseline：10/50/100 并发测试，收集内存、延迟、goroutine 曲线
-      暂时搁置，完成provider抽象、接入fakellm后再继续。
 - [ ] 关键指标输出：p95/p99、TTFT、tokens/s、pprof 截图
+
+##### Baseline 压测执行（profile 驱动）
+
+- profile 放在 `benchmarks/profiles/stageb_v1/`
+- 压测脚本只读取 profile，并校验 mockllm `/admin/config` 与 profile 的 `expected_config` 一致
+- 不再由压测脚本动态 PATCH mockllm 配置
+
+执行方式：
+
+```bash
+# 单个 profile
+go run ./scripts/baseline_loadtest.go \
+  --base-url http://localhost:10180 \
+  --profile benchmarks/profiles/stageb_v1/50_fast.json
+
+# 跑 Stage B baseline 矩阵
+./scripts/run_stage_b.sh
+```
+
+profile schema 与校验规则见：`docs/baseline_profile.md`
 
 #### Stage C：高并发与流式 I/O（基于 Baseline 优化）
 
@@ -68,7 +87,7 @@ TODO: 此处应有一张图片或 高清 gif
 
 #### Stage E：调度与 Provider 体系
 
-- [ ] Provider 抽象：mock + external API + vLLM 预留
+- [x] Provider 抽象：mock + external API + vLLM 预留
 - [ ] Multi-Provider
 - [ ] 路由策略：local-prefer / cost-aware / quality-aware
 - [ ] 会话策略：sticky session + provider 选择可追踪
