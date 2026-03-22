@@ -1,4 +1,4 @@
-又一个“LLM 网关“，包含请求 → 排队 → 合并 → streaming → 限流 → 熔断这些 LLM 网关会需要的能力。
+Yet another LLM gateway，包含请求 → 排队 → 合并 → streaming → 限流 → 熔断这些 LLM 网关会需要的能力。
 
 - 可拔插的 LLM Provider（vLLM、外部 API、Mock）
 - 使用 Grafana+Prometheus+Loki+OpenTelemetry 支撑可观测性，所有关键行为都可观测：排队、熔断、限流、首 token、tokens/s
@@ -19,7 +19,7 @@ https://github.com/blacksheepaul/prompt_endgame_fe
 
 - 断线重连期间的事件生产与回放（已补充见 `docs/user_story.md`）
 
-##### 核心玩法设计
+##### 核心玩法设计（可能不会有玩法了）
 
 类似象棋残局，你会面对一个固定的上下文，在此基础上有两种玩法模式：
 
