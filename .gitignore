@@ -18,5 +18,5 @@ coverage.html
 .DS_Store
 Thumbs.db
 *.prof
-benchmarks
+benchmarks/stage*
 docker-compose.yml
