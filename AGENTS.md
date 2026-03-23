@@ -150,7 +150,7 @@ make clean
 - `internal/domain`: pure domain objects and errors; avoid infrastructure coupling.
 - `internal/port`: interfaces only; no implementation logic.
 - `internal/app`: orchestration/use-cases; depends on ports, not concrete adapters.
-- `internal/adapter`: concrete implementations (HTTP, providers, in-memory store).
+- `internal/adapter`: concrete implementations (HTTP, providers, store implementations).
 - `internal/wiring`: composition root and dependency injection.
 
 ## Project-Specific Behavioral Rules
@@ -160,6 +160,32 @@ make clean
 - Submit flow should reject parallel turns when room is busy.
 - Event stream behavior should support replay/reconnect semantics.
 - Observability is a product goal: keep metrics/events/logging intact when modifying flows.
+
+## Storage Configuration
+
+The application supports two storage backends, controlled by `STORE_TYPE` environment variable:
+
+### Memory Store (`STORE_TYPE=memory`, default)
+- Fast, no persistence
+- Data lost on restart
+- Suitable for development and testing
+
+### SQLite Store (`STORE_TYPE=sqlite`)
+- Persistent storage using SQLite database
+- Supports memory offloading for idle rooms
+- Suitable for production deployments
+
+**SQLite Configuration:**
+- `STORE_SQLITE_PATH`: Database file path (default: `./data/prompt_endgame.db`)
+- `STORE_OFFLOAD_ENABLED`: Enable automatic memory offloading (default: `false`)
+- `STORE_MAX_CACHED_ROOMS`: Maximum rooms to keep in memory (default: `100`)
+- `STORE_IDLE_TIMEOUT`: Time before offloading idle rooms (default: `5m`)
+
+**Offload Behavior:**
+- Only `idle` state rooms can be offloaded
+- Offloaded rooms remain in database but are removed from memory cache
+- Accessing an offloaded room triggers lazy reload from database
+- Background task periodically checks for idle rooms to offload
 
 ## Change Management for Agents
 

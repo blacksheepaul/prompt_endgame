@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -14,6 +15,7 @@ type Config struct {
 	Server   ServerConfig
 	Provider ProviderConfig
 	Scenery  SceneryConfig
+	Store    StoreConfig
 	Log      LogConfig
 }
 
@@ -48,6 +50,20 @@ type SceneryConfig struct {
 	BasePath string
 }
 
+// StoreConfig holds data persistence settings
+type StoreConfig struct {
+	Type   string // "memory" or "sqlite"
+	SQLite SQLiteConfig
+}
+
+// SQLiteConfig holds SQLite-specific settings
+type SQLiteConfig struct {
+	Path           string        // Database file path
+	OffloadEnabled bool          // Enable memory offloading for idle rooms
+	MaxCachedRooms int           // Maximum rooms to keep in memory
+	IdleTimeout    time.Duration // How long before offloading an idle room
+}
+
 // LogConfig holds logging configuration
 type LogConfig struct {
 	Level zapcore.Level
@@ -63,6 +79,11 @@ var configKeysToCheck = []string{
 	"PROVIDER_TOKEN_DELAY",
 	"SCENERY_PATH",
 	"LOG_LEVEL",
+	"STORE_TYPE",
+	"STORE_SQLITE_PATH",
+	"STORE_OFFLOAD_ENABLED",
+	"STORE_MAX_CACHED_ROOMS",
+	"STORE_IDLE_TIMEOUT",
 }
 
 // Load loads configuration from environment variables.
@@ -99,6 +120,15 @@ func Load() *Config {
 		},
 		Scenery: SceneryConfig{
 			BasePath: getEnv("SCENERY_PATH", ""),
+		},
+		Store: StoreConfig{
+			Type: getEnv("STORE_TYPE", "memory"),
+			SQLite: SQLiteConfig{
+				Path:           getEnv("STORE_SQLITE_PATH", "./data/prompt_endgame.db"),
+				OffloadEnabled: getBoolEnv("STORE_OFFLOAD_ENABLED", false),
+				MaxCachedRooms: getIntEnv("STORE_MAX_CACHED_ROOMS", 100),
+				IdleTimeout:    getDurationEnv("STORE_IDLE_TIMEOUT", 5*time.Minute),
+			},
 		},
 		Log: LogConfig{
 			Level: parseLogLevel(getEnv("LOG_LEVEL", "info")),
@@ -177,4 +207,29 @@ func parseLogLevel(level string) zapcore.Level {
 	default:
 		return zapcore.InfoLevel
 	}
+}
+
+func getBoolEnv(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		switch value {
+		case "true", "1", "yes", "on":
+			return true
+		case "false", "0", "no", "off":
+			return false
+		default:
+			panic(fmt.Sprintf("Invalid configuration: invalid boolean format for %s: %s", key, value))
+		}
+	}
+	return defaultValue
+}
+
+func getIntEnv(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		intValue, err := strconv.Atoi(value)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid configuration: invalid integer format for %s: %s", key, value))
+		}
+		return intValue
+	}
+	return defaultValue
 }

@@ -1,11 +1,15 @@
 package wiring
 
 import (
+	"context"
+	"time"
+
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/http"
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/provider/mock"
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/provider/openai"
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/scenery/fs"
 	"github.com/blacksheepaul/prompt_endgame/internal/adapter/store/inmem"
+	"github.com/blacksheepaul/prompt_endgame/internal/adapter/store/sqlite"
 	"github.com/blacksheepaul/prompt_endgame/internal/app"
 	"github.com/blacksheepaul/prompt_endgame/internal/config"
 	"github.com/blacksheepaul/prompt_endgame/internal/port"
@@ -27,9 +31,51 @@ type Container struct {
 
 // Wire creates and wires all dependencies
 func Wire(cfg *config.Config, logger *zap.Logger) *Container {
-	// Create adapters
-	roomRepo := inmem.NewRoomRepo()
-	eventSink := inmem.NewEventSink()
+	// Create storage adapters based on configuration
+	var roomRepo port.RoomRepository
+	var eventSink port.EventSink
+
+	switch cfg.Store.Type {
+	case "sqlite":
+		logger.Info("Using SQLite storage",
+			zap.String("path", cfg.Store.SQLite.Path),
+			zap.Bool("offload_enabled", cfg.Store.SQLite.OffloadEnabled),
+		)
+
+		// Open database
+		db, err := sqlite.Open(cfg.Store.SQLite.Path)
+		if err != nil {
+			logger.Fatal("Failed to open SQLite database", zap.Error(err))
+		}
+
+		// Create repositories
+		sqliteRepo := sqlite.NewRoomRepo(db, cfg.Store.SQLite)
+		roomRepo = sqliteRepo
+		eventSink = sqlite.NewEventSink(db)
+
+		// Start background offloader if enabled
+		if cfg.Store.SQLite.OffloadEnabled {
+			checkInterval := cfg.Store.SQLite.IdleTimeout / 2
+			if checkInterval < 30*time.Second {
+				checkInterval = 30 * time.Second
+			}
+			sqliteRepo.StartOffloader(context.Background(), checkInterval)
+			logger.Info("Started room offloader",
+				zap.Duration("check_interval", checkInterval),
+				zap.Duration("idle_timeout", cfg.Store.SQLite.IdleTimeout),
+			)
+		}
+
+	case "memory", "":
+		logger.Info("Using in-memory storage")
+		roomRepo = inmem.NewRoomRepo()
+		eventSink = inmem.NewEventSink()
+
+	default:
+		logger.Warn("Unknown store type, defaulting to memory", zap.String("type", cfg.Store.Type))
+		roomRepo = inmem.NewRoomRepo()
+		eventSink = inmem.NewEventSink()
+	}
 
 	// Create LLM provider based on configuration
 	var llmProvider port.LLMProvider
